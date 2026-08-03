@@ -1,0 +1,26 @@
+# Jerarquía de cohortes — versión metodológica 1.0.0
+
+version: "1.0.0"
+
+# Niveles de fallback, del más específico al más amplio
+# El motor selecciona el primer nivel que cumpla min_effective_n
+hierarchy:
+  - level: 1
+    label: "Región + Tipo + Capacidad + Workload"
+    attributes: ["region", "dc_type", "capacity_band", "primary_workload"]
+
+  - level: 2
+    label: "Región + Tipo + Capacidad"
+    attributes: ["region", "dc_type", "capacity_band"]
+
+  - level: 3
+    label: "Tipo + Capacidad"
+    attributes: ["dc_type", "capacity_band"]
+
+  - level: 4
+    label: "Tipo"
+    attributes: ["dc_type"]
+
+  - level: 5
+    label: "Global"
+    attributes: []

@@ -1,0 +1,451 @@
+# Cuestionario de ejemplo — versión metodológica 1.0.0
+# NOTA: preguntas, opciones y pesos son FICTICIOS para desarrollo.
+# El equipo debe reemplazar con los valores reales aprobados antes de producción.
+
+version: "1.0.0"
+published_at: "2026-08-03"
+status: "published"
+
+dimensions:
+  - id: "visibility"
+    name: "Visibilidad cross-layer"
+    description: "Observación conjunta de energía, cooling y workloads"
+  - id: "friction_attribution"
+    name: "Atribución de fricción"
+    description: "Localizar pérdida de capacidad en una interfaz concreta"
+  - id: "coordination_latency"
+    name: "Latencia de coordinación"
+    description: "Tiempo entre cambio de workload y ajuste de cooling/energía"
+  - id: "self_quantification"
+    name: "Auto-cuantificación"
+    description: "Estimación de stranded capacity con frecuencia y confianza"
+  - id: "blockers"
+    name: "Bloqueantes"
+    description: "Obstáculos que impiden actuar sobre fricciones identificadas"
+
+questions:
+  # ── VISIBILIDAD CROSS-LAYER ──────────────────────────────────────────────────
+  - id: "q_vis_01"
+    dimension: "visibility"
+    text: "¿Con qué frecuencia consolidan métricas de energía, cooling y workloads en una vista única?"
+    weight: 1.0
+    options:
+      - id: "q_vis_01_a"
+        value: 0
+        label: "No consolidamos métricas entre capas"
+      - id: "q_vis_01_b"
+        value: 1
+        label: "Manualmente, con periodicidad mensual o menor"
+      - id: "q_vis_01_c"
+        value: 2
+        label: "Automáticamente, con periodicidad diaria"
+      - id: "q_vis_01_d"
+        value: 3
+        label: "En tiempo real o near-real-time (< 15 min)"
+
+  - id: "q_vis_02"
+    dimension: "visibility"
+    text: "¿Qué cobertura tiene su sistema de monitoreo cross-layer?"
+    weight: 1.0
+    options:
+      - id: "q_vis_02_a"
+        value: 0
+        label: "Menos del 25% de los activos"
+      - id: "q_vis_02_b"
+        value: 1
+        label: "Entre 25% y 60%"
+      - id: "q_vis_02_c"
+        value: 2
+        label: "Entre 60% y 90%"
+      - id: "q_vis_02_d"
+        value: 3
+        label: "Más del 90%"
+
+  - id: "q_vis_03"
+    dimension: "visibility"
+    text: "¿Pueden correlacionar automáticamente un evento de workload con su impacto en cooling y energía?"
+    weight: 1.5
+    options:
+      - id: "q_vis_03_a"
+        value: 0
+        label: "No, el análisis es completamente manual"
+      - id: "q_vis_03_b"
+        value: 1
+        label: "Parcialmente, con scripts ad hoc"
+      - id: "q_vis_03_c"
+        value: 2
+        label: "Sí, con herramientas semi-automatizadas"
+      - id: "q_vis_03_d"
+        value: 3
+        label: "Sí, de forma automática y alertas configuradas"
+
+  - id: "q_vis_04"
+    dimension: "visibility"
+    text: "¿Con qué granularidad temporal capturan datos de las tres capas?"
+    weight: 0.5
+    options:
+      - id: "q_vis_04_a"
+        value: 0
+        label: "Horaria o menor frecuencia"
+      - id: "q_vis_04_b"
+        value: 1
+        label: "Cada 15 minutos"
+      - id: "q_vis_04_c"
+        value: 2
+        label: "Cada 5 minutos"
+      - id: "q_vis_04_d"
+        value: 3
+        label: "Menos de 1 minuto"
+
+  # ── ATRIBUCIÓN DE FRICCIÓN ───────────────────────────────────────────────────
+  - id: "q_fri_01"
+    dimension: "friction_attribution"
+    text: "¿Pueden identificar en qué interfaz entre capas se origina una pérdida de capacidad?"
+    weight: 1.5
+    options:
+      - id: "q_fri_01_a"
+        value: 0
+        label: "No podemos localizarla"
+      - id: "q_fri_01_b"
+        value: 1
+        label: "Sí, pero solo mediante revisión manual extensa"
+      - id: "q_fri_01_c"
+        value: 2
+        label: "Sí, con proceso documentado y evidencia parcial"
+      - id: "q_fri_01_d"
+        value: 3
+        label: "Sí, de forma sistemática con evidencia cuantitativa"
+
+  - id: "q_fri_02"
+    dimension: "friction_attribution"
+    text: "¿Con qué frecuencia revisan las pérdidas de capacidad entre capas?"
+    weight: 1.0
+    options:
+      - id: "q_fri_02_a"
+        value: 0
+        label: "No tenemos un proceso de revisión"
+      - id: "q_fri_02_b"
+        value: 1
+        label: "Anualmente o ante incidentes"
+      - id: "q_fri_02_c"
+        value: 2
+        label: "Trimestralmente"
+      - id: "q_fri_02_d"
+        value: 3
+        label: "Mensualmente o con mayor frecuencia"
+
+  - id: "q_fri_03"
+    dimension: "friction_attribution"
+    text: "¿Pueden cuantificar la stranded capacity atribuible a fricción entre capas?"
+    weight: 1.0
+    options:
+      - id: "q_fri_03_a"
+        value: 0
+        label: "No tenemos estimación"
+      - id: "q_fri_03_b"
+        value: 1
+        label: "Estimación cualitativa solamente"
+      - id: "q_fri_03_c"
+        value: 2
+        label: "Estimación cuantitativa, baja confianza"
+      - id: "q_fri_03_d"
+        value: 3
+        label: "Estimación cuantitativa, alta confianza y validada"
+
+  - id: "q_fri_04"
+    dimension: "friction_attribution"
+    text: "¿Disponen de un mapa documentado de interfaces entre energía, cooling y workload?"
+    weight: 0.5
+    options:
+      - id: "q_fri_04_a"
+        value: 0
+        label: "No existe documentación de interfaces"
+      - id: "q_fri_04_b"
+        value: 1
+        label: "Documentación parcial, no actualizada"
+      - id: "q_fri_04_c"
+        value: 2
+        label: "Documentación completa pero estática"
+      - id: "q_fri_04_d"
+        value: 3
+        label: "Documentación completa y actualizada dinámicamente"
+
+  # ── LATENCIA DE COORDINACIÓN ─────────────────────────────────────────────────
+  - id: "q_lat_01"
+    dimension: "coordination_latency"
+    text: "¿Cuánto tiempo transcurre entre un cambio significativo de workload y el ajuste de cooling?"
+    weight: 1.5
+    options:
+      - id: "q_lat_01_a"
+        value: 0
+        label: "Más de 2 horas o no hay ajuste"
+      - id: "q_lat_01_b"
+        value: 1
+        label: "Entre 30 minutos y 2 horas"
+      - id: "q_lat_01_c"
+        value: 2
+        label: "Entre 5 y 30 minutos"
+      - id: "q_lat_01_d"
+        value: 3
+        label: "Menos de 5 minutos"
+
+  - id: "q_lat_02"
+    dimension: "coordination_latency"
+    text: "¿El ajuste de energía ante cambios de workload es manual o automatizado?"
+    weight: 1.0
+    options:
+      - id: "q_lat_02_a"
+        value: 0
+        label: "Completamente manual, sin proceso definido"
+      - id: "q_lat_02_b"
+        value: 1
+        label: "Manual con runbook documentado"
+      - id: "q_lat_02_c"
+        value: 2
+        label: "Semi-automatizado con aprobación humana"
+      - id: "q_lat_02_d"
+        value: 3
+        label: "Completamente automatizado"
+
+  - id: "q_lat_03"
+    dimension: "coordination_latency"
+    text: "¿Miden actualmente la latencia de coordinación entre capas?"
+    weight: 1.0
+    options:
+      - id: "q_lat_03_a"
+        value: 0
+        label: "No medimos esta métrica"
+      - id: "q_lat_03_b"
+        value: 1
+        label: "La estimamos cualitativamente"
+      - id: "q_lat_03_c"
+        value: 2
+        label: "Tenemos medición pero no sistemática"
+      - id: "q_lat_03_d"
+        value: 3
+        label: "Medición continua con baseline y alertas"
+
+  - id: "q_lat_04"
+    dimension: "coordination_latency"
+    text: "¿Tienen acuerdos de nivel de servicio internos entre los equipos de las tres capas?"
+    weight: 0.5
+    options:
+      - id: "q_lat_04_a"
+        value: 0
+        label: "No existen acuerdos formales"
+      - id: "q_lat_04_b"
+        value: 1
+        label: "Acuerdos informales no documentados"
+      - id: "q_lat_04_c"
+        value: 2
+        label: "Acuerdos documentados pero sin seguimiento"
+      - id: "q_lat_04_d"
+        value: 3
+        label: "Acuerdos documentados con seguimiento regular"
+
+  # ── AUTO-CUANTIFICACIÓN ──────────────────────────────────────────────────────
+  - id: "q_sq_01"
+    dimension: "self_quantification"
+    text: "¿Con qué frecuencia calculan la stranded capacity total del data center?"
+    weight: 1.5
+    options:
+      - id: "q_sq_01_a"
+        value: 0
+        label: "No la calculamos"
+      - id: "q_sq_01_b"
+        value: 1
+        label: "Anualmente"
+      - id: "q_sq_01_c"
+        value: 2
+        label: "Trimestralmente"
+      - id: "q_sq_01_d"
+        value: 3
+        label: "Mensualmente o con mayor frecuencia"
+
+  - id: "q_sq_02"
+    dimension: "self_quantification"
+    text: "¿Qué porcentaje de sus activos cubre su cálculo de stranded capacity?"
+    weight: 1.0
+    options:
+      - id: "q_sq_02_a"
+        value: 0
+        label: "No aplicamos este cálculo"
+      - id: "q_sq_02_b"
+        value: 1
+        label: "Menos del 30%"
+      - id: "q_sq_02_c"
+        value: 2
+        label: "Entre 30% y 70%"
+      - id: "q_sq_02_d"
+        value: 3
+        label: "Más del 70%"
+
+  - id: "q_sq_03"
+    dimension: "self_quantification"
+    text: "¿Cuál es el nivel de confianza en su estimación de stranded capacity?"
+    weight: 1.0
+    options:
+      - id: "q_sq_03_a"
+        value: 0
+        label: "No tenemos estimación formal"
+      - id: "q_sq_03_b"
+        value: 1
+        label: "Baja confianza, muchas suposiciones"
+      - id: "q_sq_03_c"
+        value: 2
+        label: "Confianza media, metodología parcialmente validada"
+      - id: "q_sq_03_d"
+        value: 3
+        label: "Alta confianza, metodología validada y auditada"
+
+  - id: "q_sq_04"
+    dimension: "self_quantification"
+    text: "¿Utilizan el cálculo de stranded capacity para tomar decisiones de inversión?"
+    weight: 0.5
+    options:
+      - id: "q_sq_04_a"
+        value: 0
+        label: "No, no influye en decisiones"
+      - id: "q_sq_04_b"
+        value: 1
+        label: "Ocasionalmente como referencia"
+      - id: "q_sq_04_c"
+        value: 2
+        label: "Sí, en revisiones de presupuesto"
+      - id: "q_sq_04_d"
+        value: 3
+        label: "Sí, es un input primario en planificación de capacidad"
+
+  # ── BLOQUEANTES ──────────────────────────────────────────────────────────────
+  - id: "q_blk_01"
+    dimension: "blockers"
+    text: "¿Cuál es el principal bloqueante para mejorar la visibilidad cross-layer?"
+    weight: 1.0
+    is_blocker: true
+    options:
+      - id: "q_blk_01_a"
+        value: 0
+        label: "Falta de herramientas de integración de datos"
+        blocker_type: "integration"
+      - id: "q_blk_01_b"
+        value: 0
+        label: "Falta de ownership claro entre equipos"
+        blocker_type: "ownership"
+      - id: "q_blk_01_c"
+        value: 0
+        label: "Restricciones de presupuesto"
+        blocker_type: "budget"
+      - id: "q_blk_01_d"
+        value: 1
+        label: "No tenemos bloqueantes significativos"
+        blocker_type: "none"
+
+  - id: "q_blk_02"
+    dimension: "blockers"
+    text: "¿Cuál es el principal bloqueante para reducir la latencia de coordinación?"
+    weight: 1.0
+    is_blocker: true
+    options:
+      - id: "q_blk_02_a"
+        value: 0
+        label: "Procesos manuales y falta de automatización"
+        blocker_type: "process"
+      - id: "q_blk_02_b"
+        value: 0
+        label: "Riesgo operativo percibido ante cambios automatizados"
+        blocker_type: "operational_risk"
+      - id: "q_blk_02_c"
+        value: 0
+        label: "Vendor lock-in o limitaciones de sistemas legados"
+        blocker_type: "vendor_lock"
+      - id: "q_blk_02_d"
+        value: 1
+        label: "No tenemos bloqueantes significativos"
+        blocker_type: "none"
+
+  - id: "q_blk_03"
+    dimension: "blockers"
+    text: "¿Con qué frecuencia revisan y actualizan el estado de sus bloqueantes?"
+    weight: 1.0
+    options:
+      - id: "q_blk_03_a"
+        value: 0
+        label: "No tenemos un proceso de revisión"
+      - id: "q_blk_03_b"
+        value: 1
+        label: "Anualmente"
+      - id: "q_blk_03_c"
+        value: 2
+        label: "Trimestralmente"
+      - id: "q_blk_03_d"
+        value: 3
+        label: "Mensualmente o con mayor frecuencia"
+
+  - id: "q_blk_04"
+    dimension: "blockers"
+    text: "¿Tienen un plan de acción activo para resolver los bloqueantes identificados?"
+    weight: 1.0
+    options:
+      - id: "q_blk_04_a"
+        value: 0
+        label: "No, los bloqueantes no están formalmente gestionados"
+      - id: "q_blk_04_b"
+        value: 1
+        label: "Sí, pero sin responsable ni fecha"
+      - id: "q_blk_04_c"
+        value: 2
+        label: "Sí, con responsable asignado"
+      - id: "q_blk_04_d"
+        value: 3
+        label: "Sí, con responsable, fecha y seguimiento regular"
+
+cohort_attributes:
+  - id: "region"
+    label: "Región"
+    bands:
+      - id: "latam"
+        label: "América Latina"
+      - id: "northam"
+        label: "América del Norte"
+      - id: "europe"
+        label: "Europa"
+      - id: "apac"
+        label: "Asia-Pacífico"
+      - id: "other"
+        label: "Otra región"
+
+  - id: "dc_type"
+    label: "Tipo de data center"
+    bands:
+      - id: "enterprise"
+        label: "Enterprise (propio)"
+      - id: "colo"
+        label: "Colocation"
+      - id: "hyperscale"
+        label: "Hyperscale / cloud"
+      - id: "edge"
+        label: "Edge"
+
+  - id: "capacity_band"
+    label: "Banda de capacidad IT"
+    bands:
+      - id: "small"
+        label: "< 1 MW"
+      - id: "medium"
+        label: "1-10 MW"
+      - id: "large"
+        label: "10-50 MW"
+      - id: "xlarge"
+        label: "> 50 MW"
+
+  - id: "primary_workload"
+    label: "Workload principal"
+    bands:
+      - id: "general"
+        label: "Cómputo general"
+      - id: "hpc"
+        label: "HPC / AI / GPU"
+      - id: "storage"
+        label: "Almacenamiento masivo"
+      - id: "mixed"
+        label: "Mixto"

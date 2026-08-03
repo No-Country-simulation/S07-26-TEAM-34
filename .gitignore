@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+.installed.cfg
+lib/
+lib64/
+
+# Virtualenv
+.venv/
+venv/
+env/
+ENV/
+
+# Base de datos de desarrollo
+*.db
+*.sqlite3
+
+# Alembic (solo conservar el directorio, no la DB)
+alembic/__pycache__/
+
+# Hypothesis
+.hypothesis/
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets y config local
+.env
+.env.local
+*.pem
+*.key
+
+# Docs binarios (ya están en el repo como referencia)
+# Arquitectura_Benchmark_Data_Centers_Kiro.docx  # mantener en repo
