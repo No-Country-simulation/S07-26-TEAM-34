@@ -1,0 +1,301 @@
+# config/dimensiones.yaml — fuente única de preguntas, opciones y scores
+# Versión: 1.0.0
+# Basado en Documento_Metodologico_Benchmark.md (secciones 3-7)
+# NUNCA escribir scores a mano en .py — todo sale de aquí.
+
+version: "1.0.0"
+
+# Campos de contexto del operador (doc sección 8)
+# No miden madurez; sirven para grupos comparables.
+segmentacion:
+  facility_size:
+    label: "Tamaño aproximado del facility"
+    opciones:
+      - id: "menos_1mw"
+        label: "< 1 MW"
+      - id: "1_5mw"
+        label: "1-5 MW"
+      - id: "5_20mw"
+        label: "5-20 MW"
+      - id: "mas_20mw"
+        label: "> 20 MW"
+
+  region:
+    label: "Región"
+    opciones:
+      - id: "latam"
+        label: "América Latina"
+      - id: "norteamerica"
+        label: "América del Norte"
+      - id: "europa"
+        label: "Europa"
+      - id: "apac"
+        label: "Asia-Pacífico"
+      - id: "otro"
+        label: "Otra región"
+
+  dc_type:
+    label: "Tipo de data center"
+    opciones:
+      - id: "hyperscale"
+        label: "Hyperscale"
+      - id: "colocation"
+        label: "Colocation"
+      - id: "enterprise"
+        label: "Enterprise"
+      - id: "edge"
+        label: "Edge"
+
+dimensiones:
+
+  # ── 1. Latencia de coordinación (doc sección 3) ───────────────────────────
+  latencia:
+    label: "Latencia de coordinación"
+    descripcion: >
+      Qué tan rápido se ajustan cooling y energía cuando cambia el workload,
+      y cuánto de ese ajuste depende de intervención humana.
+    formula: "(score_p1 + score_p2 + score_p3) / 3"
+    preguntas:
+      p1:
+        texto: "¿Aproximadamente cuánto tiempo tarda en ajustarse el cooling tras un cambio significativo de carga de trabajo?"
+        tipo: "numerico_minutos"   # input numérico, la API recibe minutos
+        buckets:                   # doc §3: normalización P1/P2
+          - max: 5
+            score: 100
+          - max: 60
+            score: 75
+          - max: 240
+            score: 50
+          - max: 1440
+            score: 25
+          - max: null              # > 1440
+            score: 0
+
+      p2:
+        texto: "¿Y la asignación de energía/potencia frente a ese mismo cambio de carga?"
+        tipo: "numerico_minutos"
+        buckets:                   # misma escala que P1
+          - max: 5
+            score: 100
+          - max: 60
+            score: 75
+          - max: 240
+            score: 50
+          - max: 1440
+            score: 25
+          - max: null
+            score: 0
+
+      p3:
+        texto: "¿Ese ajuste requiere que una persona lo note y actúe, o está automatizado sin intervención?"
+        tipo: "categorico_ordinal"
+        opciones:
+          - id: "automatizado"
+            label: "Automatizado, sin intervención humana"
+            score: 100
+          - id: "alertas_accion_manual"
+            label: "Alertas automáticas, acción manual"
+            score: 67
+          - id: "reporte_revision_manual"
+            label: "Reporte periódico + revisión manual"
+            score: 33
+          - id: "sin_proceso"
+            label: "No hay proceso definido"
+            score: 0
+
+  # ── 2. Visibilidad cross-layer (doc sección 4) ────────────────────────────
+  visibilidad:
+    label: "Visibilidad cross-layer"
+    descripcion: >
+      Si el operador tiene una vista unificada de energía, cooling y workload,
+      o si cada capa se gestiona de forma aislada.
+    formula: "(score_p1 + score_p2 + score_p3) / 3"
+    preguntas:
+      p1:
+        texto: "¿Cuántas herramientas o sistemas distintos usan hoy para monitorear energía, cooling y workload respectivamente?"
+        tipo: "numerico_entero"    # cantidad de sistemas
+        buckets:
+          - max: 1
+            score: 100
+          - max: 2
+            score: 67
+          - max: 3
+            score: 33
+          - max: null              # > 3 o sin sistema
+            score: 0
+
+      p2:
+        texto: "¿Con qué frecuencia se cruza o consolida la información de las tres capas en un mismo reporte o vista?"
+        tipo: "categorico_ordinal"
+        opciones:
+          - id: "tiempo_real"
+            label: "Tiempo real / continuo"
+            score: 100
+          - id: "diario"
+            label: "Diario"
+            score: 75
+          - id: "semanal"
+            label: "Semanal"
+            score: 50
+          - id: "mensual"
+            label: "Mensual o más espaciado"
+            score: 25
+          - id: "nunca"
+            label: "Nunca se cruza la información"
+            score: 0
+
+      p3:
+        texto: "¿Quién puede ver energía, cooling y workload juntos, en un mismo lugar, dentro de tu organización?"
+        tipo: "categorico_ordinal"
+        opciones:
+          - id: "cualquier_responsable"
+            label: "Cualquier responsable puede verlas juntas en un solo lugar"
+            score: 100
+          - id: "rol_especifico"
+            label: "Solo un rol específico las consolida manualmente para reportar"
+            score: 50
+          - id: "nadie"
+            label: "Cada equipo ve solo su capa; nadie tiene la vista completa"
+            score: 0
+
+  # ── 3. Atribución de fricción (doc sección 5) ─────────────────────────────
+  atribucion_friccion:
+    label: "Atribución de fricción"
+    descripcion: >
+      En qué interfaz entre capas percibe el operador que se pierde más capacidad
+      y qué tan basada en evidencia está esa percepción.
+    formula: "(score_p2 + score_p3) / 2"  # P1 es nominal, no entra al índice
+    preguntas:
+      p1:
+        texto: "¿En cuál de estas interfaces sentís que se pierde más capacidad?"
+        tipo: "categorico_nominal"         # diagnóstico, NO entra al score
+        opciones:
+          - id: "energia_cooling"
+            label: "Energía ↔ Cooling"
+          - id: "cooling_workload"
+            label: "Cooling ↔ Workload"
+          - id: "workload_energia"
+            label: "Workload ↔ Energía"
+          - id: "no_sabria"
+            label: "No sabría decir"
+            caso_borde: true               # si se elige esto, P2 y P3 = 0
+
+      p2:
+        texto: "¿Existe algún reporte, log o medición concreta que respalde esta atribución, o es una apreciación sin evidencia registrada?"
+        tipo: "categorico_ordinal"
+        opciones:
+          - id: "con_evidencia"
+            label: "Sí, con reporte o medición concreta"
+            score: 100
+          - id: "estimacion"
+            label: "Solo una estimación aproximada, sin registro formal"
+            score: 50
+          - id: "sin_evidencia"
+            label: "No, es una apreciación sin evidencia registrada"
+            score: 0
+
+      p3:
+        texto: "¿Con qué frecuencia revisan o actualizan esta atribución, en vez de asumirla fija desde hace tiempo?"
+        tipo: "categorico_ordinal"
+        opciones:
+          - id: "activamente"
+            label: "Se revisa activamente con cada cambio relevante de infraestructura o workload"
+            score: 100
+          - id: "periodicamente"
+            label: "Se revisa periódicamente (por ejemplo, anual)"
+            score: 50
+          - id: "nunca"
+            label: "Nunca se revisó desde que se formó la percepción inicial"
+            score: 0
+
+  # ── 4. Auto-cuantificación (doc sección 6) ────────────────────────────────
+  auto_cuantificacion:
+    label: "Auto-cuantificación"
+    descripcion: >
+      Si el operador sabe, en números concretos, cuánta capacidad tiene varada,
+      o si no tiene forma de cuantificarlo.
+    formula: "(score_completitud_p1p2 + score_p3) / 2"
+    preguntas:
+      p1:
+        texto: "¿Cuál es la capacidad instalada total de tu facility?"
+        tipo: "numerico_capacidad"         # float > 0, misma unidad que P2
+        unidad_compartida: "p2"            # P1 y P2 usan la misma unidad (MW o kW)
+
+      p2:
+        texto: "¿Cuál es la capacidad máxima que podés usar hoy sin arriesgar estabilidad térmica/eléctrica?"
+        tipo: "numerico_capacidad"
+        unidad_compartida: "p1"
+        # Validación inline: P2 <= P1 y ambos > 0. Si no → score_completitud = 0
+
+      p2_unidad:
+        texto: "Unidad de medida para capacidad instalada y máxima utilizable"
+        tipo: "selector_unidad"
+        opciones:
+          - id: "mw"
+            label: "MW"
+          - id: "kw"
+            label: "kW"
+
+      p3:
+        texto: "¿Con qué frecuencia se vuelve a medir este número?"
+        tipo: "categorico_ordinal"
+        opciones:
+          - id: "tiempo_real"
+            label: "Continuamente / en tiempo real"
+            score: 100
+          - id: "trimestral_semestral"
+            label: "Trimestral o semestral"
+            score: 67
+          - id: "anual"
+            label: "Anual"
+            score: 33
+          - id: "nunca"
+            label: "Nunca se remidió"
+            score: 0
+
+  # ── 5. Bloqueantes (doc sección 7) ────────────────────────────────────────
+  bloqueantes:
+    label: "Bloqueantes"
+    descripcion: >
+      Qué le impediría al operador resolver el problema si supiera exactamente
+      dónde está: presupuesto, política, herramientas o personal.
+    formula: "(score_cantidad_p1 + score_p2) / 2"  # P1 es nominal multi-selección
+    preguntas:
+      p1:
+        texto: "Si supieras exactamente dónde está tu problema de coordinación, ¿qué te impediría resolverlo hoy? Podés marcar más de uno."
+        tipo: "categorico_nominal_multiseleccion"   # diagnóstico, NO entra al score directo
+        # El score se calcula por la CANTIDAD de bloqueantes marcados (doc §7)
+        score_por_cantidad:
+          0: 100   # solo "nada" marcado
+          1: 67
+          2: 33
+          3_o_mas: 0
+        opciones:
+          - id: "presupuesto"
+            label: "Presupuesto"
+          - id: "autoridad_politica"
+            label: "Falta de autoridad o decisión política interna"
+          - id: "herramientas"
+            label: "Falta de herramientas técnicas"
+          - id: "personal"
+            label: "Falta de personal capacitado"
+          - id: "nada"
+            label: "Nada, podríamos resolverlo"
+            caso_borde: true   # si se elige solo este, P2 se autoasigna 100
+
+      p2:
+        texto: "¿Qué tan severo considerás ese bloqueante para resolver el problema en los próximos 6-12 meses?"
+        tipo: "categorico_ordinal"
+        opciones:
+          - id: "no_bloqueante"
+            label: "No es un bloqueante real, podríamos resolverlo si quisiéramos"
+            score: 100
+          - id: "moderado"
+            label: "Obstáculo moderado, resoluble con esfuerzo"
+            score: 67
+          - id: "fuerte"
+            label: "Obstáculo fuerte, poco probable resolverlo en el corto plazo"
+            score: 33
+          - id: "estructural"
+            label: "Bloqueante estructural, no lo vemos resoluble en el corto plazo"
+            score: 0
