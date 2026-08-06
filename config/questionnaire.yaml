@@ -1,0 +1,230 @@
+# Cuestionario del Benchmark de Madurez en Data Centers
+# Fuente de verdad: Documento_Metodologico_Benchmark.md
+# Cualquier cambio a este archivo debe reflejarse primero en ese documento.
+
+version: "1.0.0"
+
+scale_conventions:
+  # Escalas lineales equiespaciadas (documento, seccion 2.3)
+  5_level: [100, 75, 50, 25, 0]
+  4_level: [100, 67, 33, 0]
+  3_level: [100, 50, 0]
+
+dimensions:
+
+  # ---------------------------------------------------------------------
+  latencia_coordinacion:
+    label: "Latencia de coordinacion"
+    index_formula: "mean(lat_p1, lat_p2, lat_p3)"
+    questions:
+      - id: lat_p1_minutos_cooling
+        prompt: "¿Aproximadamente cuánto tiempo tarda en ajustarse el cooling tras un cambio significativo de carga de trabajo?"
+        type: numeric
+        unit: minutes
+        enters_index: true
+        scoring:
+          type: bucket
+          buckets:
+            - {max_inclusive: 5, score: 100}
+            - {max_inclusive: 60, score: 75}
+            - {max_inclusive: 240, score: 50}
+            - {max_inclusive: 1440, score: 25}
+            - {max_inclusive: null, score: 0}
+
+      - id: lat_p2_minutos_energia
+        prompt: "¿Y la asignación de energía/potencia frente a ese mismo cambio de carga?"
+        type: numeric
+        unit: minutes
+        enters_index: true
+        scoring:
+          type: bucket
+          buckets:
+            - {max_inclusive: 5, score: 100}
+            - {max_inclusive: 60, score: 75}
+            - {max_inclusive: 240, score: 50}
+            - {max_inclusive: 1440, score: 25}
+            - {max_inclusive: null, score: 0}
+
+      - id: lat_p3_automatizacion
+        prompt: "¿Ese ajuste requiere que una persona lo note y actúe, o está automatizado sin intervención?"
+        type: categorical
+        enters_index: true
+        options:
+          - {value: automatizado, label: "Automatizado, sin intervención humana", score: 100}
+          - {value: alertas_manual, label: "Alertas automáticas, acción manual", score: 67}
+          - {value: reporte_periodico, label: "Reporte periódico + revisión manual", score: 33}
+          - {value: sin_proceso, label: "No hay proceso definido", score: 0}
+
+  # ---------------------------------------------------------------------
+  visibilidad_cross_layer:
+    label: "Visibilidad cross-layer"
+    index_formula: "mean(vis_p1, vis_p2, vis_p3)"
+    questions:
+      - id: vis_p1_cantidad_sistemas
+        prompt: "¿Cuántas herramientas o sistemas distintos usan hoy para monitorear energía, cooling y workload respectivamente?"
+        type: numeric
+        unit: count
+        enters_index: true
+        scoring:
+          type: bucket
+          buckets:
+            - {max_inclusive: 1, score: 100}
+            - {max_inclusive: 2, score: 67}
+            - {max_inclusive: 3, score: 33}
+            - {max_inclusive: null, score: 0}
+
+      - id: vis_p2_frecuencia_consolidacion
+        prompt: "¿Con qué frecuencia se cruza o consolida la información de las tres capas en un mismo reporte o vista?"
+        type: categorical
+        enters_index: true
+        options:
+          - {value: tiempo_real, label: "Tiempo real / continuo", score: 100}
+          - {value: diario, label: "Diario", score: 75}
+          - {value: semanal, label: "Semanal", score: 50}
+          - {value: mensual_o_mas, label: "Mensual o más espaciado", score: 25}
+          - {value: nunca, label: "Nunca se cruza la información", score: 0}
+
+      - id: vis_p3_acceso_vista_unificada
+        prompt: "¿Quién puede ver energía, cooling y workload juntos, en un mismo lugar, dentro de tu organización?"
+        type: categorical
+        enters_index: true
+        options:
+          - {value: cualquiera, label: "Cualquier responsable puede verlas juntas en un solo lugar", score: 100}
+          - {value: un_rol, label: "Solo un rol específico las consolida manualmente para reportar", score: 50}
+          - {value: nadie, label: "Cada equipo ve solo su capa; nadie tiene la vista completa", score: 0}
+
+  # ---------------------------------------------------------------------
+  atribucion_friccion:
+    label: "Atribución de fricción"
+    index_formula: "mean(atr_p2, atr_p3)"
+    edge_cases:
+      - condition: "atr_p1 == 'no_sabria_decir'"
+        effect: "atr_p2 = 0, atr_p3 = 0 (no se preguntan)"
+    questions:
+      - id: atr_p1_interfaz
+        prompt: "¿En cuál de estas interfaces sentís que se pierde más capacidad?"
+        type: categorical_nominal
+        enters_index: false
+        note: "Nominal — no entra al índice. Se usa como dato diagnóstico en el Motor de interpretación."
+        options:
+          - {value: energia_cooling, label: "Energía ↔ Cooling"}
+          - {value: cooling_workload, label: "Cooling ↔ Workload"}
+          - {value: workload_energia, label: "Workload ↔ Energía"}
+          - {value: no_sabria_decir, label: "No sabría decir"}
+
+      - id: atr_p2_respaldo
+        prompt: "¿Existe algún reporte, log o medición concreta que respalde esta atribución, o es una apreciación sin evidencia registrada?"
+        type: categorical
+        enters_index: true
+        options:
+          - {value: con_medicion, label: "Sí, con reporte o medición concreta", score: 100}
+          - {value: estimacion, label: "Solo una estimación aproximada, sin registro formal", score: 50}
+          - {value: sin_evidencia, label: "No, es una apreciación sin evidencia registrada", score: 0}
+
+      - id: atr_p3_vigencia
+        prompt: "¿Con qué frecuencia revisan o actualizan esta atribución, en vez de asumirla fija desde hace tiempo?"
+        type: categorical
+        enters_index: true
+        options:
+          - {value: revision_activa, label: "Se revisa activamente con cada cambio relevante de infraestructura o workload", score: 100}
+          - {value: revision_periodica, label: "Se revisa periódicamente (ej. anual)", score: 50}
+          - {value: nunca_revisada, label: "Nunca se revisó desde que se formó la percepción inicial", score: 0}
+
+  # ---------------------------------------------------------------------
+  auto_cuantificacion:
+    label: "Auto-cuantificación"
+    note: >
+      Mide la CAPACIDAD de auto-cuantificar (si la organización puede producir
+      un número coherente), no la exactitud de ese número.
+    index_formula: "mean(completitud_p1p2_score, auto_p3)"
+    derived:
+      - id: pct_capacidad_varada
+        formula: "(auto_p1_capacidad_instalada - auto_p2_capacidad_utilizable) / auto_p1_capacidad_instalada * 100"
+        enters_index: false
+        note: "Dato de contexto para el output, no participa del score."
+      - id: completitud_p1p2_score
+        formula: "100 if (p1 is numeric and p2 is numeric and p2 <= p1 and p1 > 0 and p2 > 0) else 0"
+        enters_index: true
+    validation_inline:
+      - "p2 debe ser <= p1"
+      - "ambos deben ser positivos"
+      - "si no se cumple: el par se descarta del cálculo derivado, completitud_p1p2_score = 0"
+    questions:
+      - id: auto_p1_capacidad_instalada
+        prompt: "¿Cuál es la capacidad instalada total de tu facility?"
+        type: numeric
+        unit: mw_or_kw
+        unit_selector_shared_with: auto_p2_capacidad_utilizable
+        note: "Un único selector de unidad (MW o kW) aplica a P1 y P2 en conjunto — no una unidad libre por pregunta."
+        enters_index: false
+        used_in_derived: true
+
+      - id: auto_p2_capacidad_utilizable
+        prompt: "¿Cuál es la capacidad máxima que podés usar hoy sin arriesgar estabilidad térmica/eléctrica?"
+        type: numeric
+        unit: mw_or_kw
+        enters_index: false
+        used_in_derived: true
+
+      - id: auto_p3_frecuencia_remedicion
+        prompt: "¿Con qué frecuencia se vuelve a medir este número?"
+        type: categorical
+        enters_index: true
+        options:
+          - {value: continuamente, label: "Continuamente / en tiempo real", score: 100}
+          - {value: trimestral_semestral, label: "Trimestral o semestral", score: 67}
+          - {value: anual, label: "Anual", score: 33}
+          - {value: nunca_remedido, label: "Nunca se remidió", score: 0}
+
+  # ---------------------------------------------------------------------
+  bloqueantes:
+    label: "Bloqueantes"
+    index_formula: "mean(cantidad_p1_score, blk_p2)"
+    edge_cases:
+      - condition: "blk_p1_seleccionados == ['nada']"
+        effect: "blk_p2 = 100 (autoasignado, no se pregunta)"
+    derived:
+      - id: cantidad_p1_score
+        formula: "100 if count==0 else 67 if count==1 else 33 if count==2 else 0"
+        note: "count = cantidad de opciones marcadas en blk_p1_seleccionados, excluyendo 'nada'"
+        enters_index: true
+    questions:
+      - id: blk_p1_seleccionados
+        prompt: "Si supieras exactamente dónde está tu problema de coordinación, ¿qué te impediría resolverlo hoy? (podés marcar más de uno)"
+        type: categorical_nominal_multiselect
+        enters_index: false
+        note: "Nominal — no entra al índice directamente. Se usa como dato diagnóstico. La CANTIDAD marcada sí entra (ver derived)."
+        options:
+          - {value: presupuesto, label: "Presupuesto"}
+          - {value: autoridad_politica, label: "Falta de autoridad o decisión política interna"}
+          - {value: herramientas, label: "Falta de herramientas técnicas"}
+          - {value: personal, label: "Falta de personal capacitado"}
+          - {value: nada, label: "Nada, podríamos resolverlo"}
+
+      - id: blk_p2_severidad
+        prompt: "¿Qué tan severo considerás ese bloqueante para resolver el problema en los próximos 6-12 meses?"
+        type: categorical
+        enters_index: true
+        options:
+          - {value: no_es_real, label: "No es un bloqueante real, podríamos resolverlo si quisiéramos", score: 100}
+          - {value: moderado, label: "Obstáculo moderado, resoluble con esfuerzo", score: 67}
+          - {value: fuerte, label: "Obstáculo fuerte, poco probable resolverlo en el corto plazo", score: 33}
+          - {value: estructural, label: "Bloqueante estructural, no lo vemos resoluble en el corto plazo", score: 0}
+
+# ---------------------------------------------------------------------
+segmentation_fields:
+  # No son dimensiones de madurez. Metadata de contexto (documento, seccion 8).
+  - id: facility_size
+    label: "Tamaño aproximado del facility"
+    type: categorical
+    options: ["<1MW", "1-5MW", "5-20MW", ">20MW"]
+
+  - id: region
+    label: "Región"
+    type: categorical
+    note: "Continente o región amplia, no país exacto, para no comprometer el anonimato."
+
+  - id: dc_type
+    label: "Tipo de data center"
+    type: categorical
+    options: [hyperscale, colocation, enterprise, edge]
