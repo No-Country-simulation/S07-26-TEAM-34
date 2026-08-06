@@ -48,28 +48,13 @@ class PipelineResult:
 # ── Imports de motores (placeholders hasta que se implementen en Tanda 2) ─────
 
 def _scoring_engine(req: CuestionarioRequest, result: PipelineResult) -> None:
-    """Motor 3.1 — placeholder hasta PR 6."""
-    # TODO: implementar en PR 6
-    for dim in ["latencia", "visibilidad", "atribucion_friccion",
-                "auto_cuantificacion", "bloqueantes"]:
-        result.scores[dim] = 50.0   # valor neutro hasta implementación real
-    result.raw_answers = {
-        "latencia": {"p1_minutos": req.latencia.p1_minutos,
-                     "p2_minutos": req.latencia.p2_minutos,
-                     "p3": req.latencia.p3},
-        "visibilidad": {"p1_sistemas": req.visibilidad.p1_sistemas,
-                        "p2": req.visibilidad.p2,
-                        "p3": req.visibilidad.p3},
-        "atribucion_friccion": {"p1": req.atribucion_friccion.p1,
-                                "p2": req.atribucion_friccion.p2,
-                                "p3": req.atribucion_friccion.p3},
-        "auto_cuantificacion": {"p1": req.auto_cuantificacion.p1_capacidad_total,
-                                "p2": req.auto_cuantificacion.p2_capacidad_utilizable,
-                                "unidad": req.auto_cuantificacion.unidad,
-                                "p3": req.auto_cuantificacion.p3},
-        "bloqueantes": {"p1": req.bloqueantes.p1_bloqueantes,
-                        "p2": req.bloqueantes.p2_severidad},
-    }
+    """Motor 3.1 — usa ScoringEngine real."""
+    from app.engines.scoring_engine import ScoringEngine
+    scoring = ScoringEngine()
+    scoring_result = scoring.score(req)
+    for sd in scoring_result.scores:
+        result.scores[sd.dimension] = sd.score
+        result.raw_answers[sd.dimension] = sd.raw_answers
 
 
 def _grupos_comparables_engine(req: CuestionarioRequest, result: PipelineResult) -> None:
