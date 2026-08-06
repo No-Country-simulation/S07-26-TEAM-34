@@ -1,161 +1,169 @@
 """
-Orquestador (services/) — llama a los motores en el orden del backlog (sección 8).
+Orquestador — llama a los 7 motores en el orden del backlog (sección 8).
 
-Recibe datos, devuelve datos.
-No importa FastAPI. No sabe nada de HTTP. Testeable sin servidor.
+Flujo completo:
+  Scoring → Grupos comparables → Rebalanceo → Benchmark/Percentiles
+  → Top 25% → Interpretación → Privacidad/Persistencia
 
-Orden de ejecución:
-  Scoring (3.1)
-  → Grupos comparables (3.2)
-  → Rebalanceo (3.3) → Benchmark y percentiles (3.4)
-  → Comparación top 25% (3.5)
-  → Interpretación con LLM (3.6)
-  → Privacidad y agregación (3.7) → Dataset primario
-
-Los motores que todavía no están implementados usan placeholders
-que devuelven datos válidos para no bloquear la integración.
+Recibe CuestionarioRequest, devuelve ResultadoResponse.
+No importa FastAPI. No sabe nada de HTTP.
 """
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from contextlib import contextmanager
+from typing import Any
 
+from app.config.loader import get_config
+from app.engines.benchmark_engine import BenchmarkEngine
+from app.engines.interpretation_engine import InterpretationEngine
+from app.engines.privacy_engine import PrivacyEngine
+from app.engines.rebalance_engine import RebalanceEngine
+from app.engines.scoring_engine import ScoringEngine
+from app.engines.top_quartile_engine import TopQuartileEngine
+from app.models.database import get_session
+from app.repositories.benchmark_repository import BenchmarkRepository
 from app.schemas.request import CuestionarioRequest
 from app.schemas.response import PDFInputResponse, ResultadoResponse, ScoreDimension
 
+# Dataset público sintético en memoria mientras no existe el CSV real (backlog §12 paso 2)
+# En producción: cargar desde dataset_publico_sintetico.csv
+_DATASET_SINTETICO: dict[str, list[float]] = {
+    dim: [float(i) for i in range(0, 101, 2)]   # 51 valores: 0,2,4,...,100
+    for dim in ["latencia", "visibilidad", "atribucion_friccion",
+                "auto_cuantificacion", "bloqueantes"]
+}
 
-# ── Resultado intermedio que viaja entre motores ──────────────────────────────
+_GRUPO_DEFAULT = "global"
+_BENCHMARK_VERSION = "1.0.0"
+_DIMENSION_VERSION = "1.0.0"
 
-@dataclass
-class PipelineResult:
-    operator_id: str
-    scores: dict[str, float] = field(default_factory=dict)        # dim → 0-100
-    raw_answers: dict[str, dict] = field(default_factory=dict)    # dim → respuestas crudas
-    grupo_comparable: str = "global"
-    n_grupo: int = 0
-    peso_publico: float = 1.0
-    peso_primario: float = 0.0
-    percentiles: dict[str, float] = field(default_factory=dict)   # dim → 0-100
-    friccion_principal: str = ""
-    perfil: str = ""
-    top_quartile_gaps: dict[str, str] = field(default_factory=dict)
-    diagnostico_texto: str = ""
-    porcentaje_capacidad_varada: float | None = None
-    benchmark_version: str = "1.0.0"
-    dimension_version: str = "1.0.0"
-
-
-# ── Imports de motores (placeholders hasta que se implementen en Tanda 2) ─────
-
-def _scoring_engine(req: CuestionarioRequest, result: PipelineResult) -> None:
-    """Motor 3.1 — usa ScoringEngine real."""
-    from app.engines.scoring_engine import ScoringEngine
-    scoring = ScoringEngine()
-    scoring_result = scoring.score(req)
-    for sd in scoring_result.scores:
-        result.scores[sd.dimension] = sd.score
-        result.raw_answers[sd.dimension] = sd.raw_answers
-
-
-def _grupos_comparables_engine(req: CuestionarioRequest, result: PipelineResult) -> None:
-    """Motor 3.2 — placeholder hasta Tanda 2."""
-    # TODO: implementar con dataset sintético
-    ctx = req.contexto
-    result.grupo_comparable = f"{ctx.region}_{ctx.facility_size}_{ctx.dc_type}"
-    result.n_grupo = 0   # sin dataset todavía
-
-
-def _rebalanceo_engine(result: PipelineResult) -> None:
-    """Motor 3.3 — placeholder hasta PR 10."""
-    # TODO: peso_primario = (n_válido / (n_válido + 50)) × factor_diversidad
-    result.peso_primario = 0.0
-    result.peso_publico = 1.0
-
-
-def _benchmark_engine(result: PipelineResult) -> None:
-    """Motor 3.4 — placeholder hasta Tanda 2."""
-    # TODO: calcular percentiles contra distribución combinada
-    for dim in result.scores:
-        result.percentiles[dim] = 50.0   # percentil neutro
-
-
-def _top_quartile_engine(result: PipelineResult) -> None:
-    """Motor 3.5 — placeholder hasta Tanda 2."""
-    # TODO: comparar respuestas del operador vs. top 25%
-    result.top_quartile_gaps = {}
-
-
-def _interpretacion_engine(result: PipelineResult) -> None:
-    """Motor 3.6 — placeholder hasta Tanda 2."""
-    # TODO: asignar perfil por regla determinística, luego LLM para texto
-    if result.percentiles:
-        peor_dim = min(result.percentiles, key=result.percentiles.get)
-        result.friccion_principal = peor_dim
-    else:
-        result.friccion_principal = "latencia"
-    result.perfil = "pendiente_de_implementacion"
-    result.diagnostico_texto = "Diagnóstico pendiente de implementación del motor de interpretación."
-
-
-def _privacidad_engine(result: PipelineResult) -> None:
-    """Motor 3.7 — UUID ya asignado. Nada más en la versión liviana."""
-    pass   # el operator_id es aleatorio desde el inicio del pipeline
-
-
-# ── Orquestador principal ─────────────────────────────────────────────────────
 
 class BenchmarkService:
     """
-    Orquesta los motores en el orden del backlog sección 8.
-    No importa FastAPI. Recibe CuestionarioRequest, devuelve ResultadoResponse.
+    Orquesta los 7 motores en el orden del backlog §8.
+    llm_client es opcional — si no se pasa, la interpretación usa fallback determinista.
     """
 
+    def __init__(self, llm_client: Any | None = None) -> None:
+        self._scoring = ScoringEngine()
+        self._rebalanceo = RebalanceEngine()
+        self._benchmark = BenchmarkEngine()
+        self._top_quartile = TopQuartileEngine()
+        self._interpretacion = InterpretationEngine(llm_client=llm_client)
+        self._privacidad = PrivacyEngine()
+        self._repo = BenchmarkRepository()
+        self._cfg = get_config()
+
     def procesar(self, req: CuestionarioRequest) -> ResultadoResponse:
-        result = PipelineResult(operator_id=str(uuid.uuid4()))
+        # ── 1. Privacidad: ID anónimo al inicio (motor 3.7) ──────────────────
+        operator_id = self._privacidad.generar_operator_id()
 
-        # Orden exacto del backlog sección 8
-        _scoring_engine(req, result)
-        _grupos_comparables_engine(req, result)
-        _rebalanceo_engine(result)
-        _benchmark_engine(result)
-        _top_quartile_engine(result)
-        _interpretacion_engine(result)
-        _privacidad_engine(result)
+        # ── 2. Scoring (motor 3.1) ────────────────────────────────────────────
+        scoring_result = self._scoring.score(req)
+        scores = {sd.dimension: sd.score for sd in scoring_result.scores}
+        raw_answers = {sd.dimension: sd.raw_answers for sd in scoring_result.scores}
 
-        # Cálculo derivado de capacidad varada (doc §6)
+        # ── 3. Grupos comparables (motor 3.2) — placeholder simple ────────────
+        grupo = _GRUPO_DEFAULT   # TODO: segmentar por region/facility_size/dc_type
+
+        # ── 4. Rebalanceo (motor 3.3) ─────────────────────────────────────────
+        # Sin datos primarios al inicio → 100% público (doc §9)
+        rebalanceo_por_dim = {}
+        distribuciones = {}
+        for dim in scores:
+            rb = self._rebalanceo.rebalancear(
+                scores_publicos=_DATASET_SINTETICO.get(dim, []),
+                scores_primarios=[],   # dataset primario vacío al inicio
+                categorias_cubiertas=0,
+            )
+            rebalanceo_por_dim[dim] = rb
+            distribuciones[dim] = rb.distribucion_combinada
+
+        # ── 5. Benchmark y percentiles (motor 3.4) ────────────────────────────
+        benchmark_result = self._benchmark.calcular(
+            scores_operador=scores,
+            distribuciones=distribuciones,
+            grupo_comparable=grupo,
+        )
+        percentiles = {pd.dimension: pd.percentil for pd in benchmark_result.dimensiones}
+        umbrales_p75 = {pd.dimension: pd.p75_ref for pd in benchmark_result.dimensiones}
+
+        # ── 6. Comparación top 25% (motor 3.5) ───────────────────────────────
+        top_quartile_result = self._top_quartile.analizar(
+            scores_operador=scores,
+            percentiles_operador=percentiles,
+            umbrales_p75=umbrales_p75,
+        )
+        gaps = {b.dimension: b.descripcion for b in top_quartile_result.brechas}
+
+        # ── 7. Interpretación (motor 3.6) ─────────────────────────────────────
+        interp = self._interpretacion.interpretar(scores, benchmark_result, top_quartile_result)
+
+        # ── 8. Cálculo derivado: % capacidad varada ───────────────────────────
         p1 = req.auto_cuantificacion.p1_capacidad_total
         p2 = req.auto_cuantificacion.p2_capacidad_utilizable
-        if p1 and p2 and p1 > 0:
-            result.porcentaje_capacidad_varada = round((p1 - p2) / p1 * 100, 2)
+        pct_varada = round((p1 - p2) / p1 * 100, 2) if p1 and p2 and p1 > 0 else None
 
-        return self._to_response(result)
-
-    def pdf_input(self, req: CuestionarioRequest) -> PDFInputResponse:
-        """Genera el payload para el PDF de Proyecto 5."""
-        resultado = self.procesar(req)
-        return PDFInputResponse(**resultado.model_dump())
-
-    # ── privado ───────────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _to_response(r: PipelineResult) -> ResultadoResponse:
-        scores = [
-            ScoreDimension(
-                dimension=dim,
-                score=score,
-                percentil=r.percentiles.get(dim, 50.0),
-                descripcion_breve="",
+        # ── 9. Persistencia (3 tablas) ────────────────────────────────────────
+        with get_session() as session:
+            self._repo.guardar_resultado(
+                session=session,
+                operator_id=operator_id,
+                contexto=req.contexto.model_dump(),
+                scores=scores,
+                raw_answers=raw_answers,
+                percentiles=percentiles,
+                friccion_principal=interp.friccion_principal,
+                perfil=interp.perfil,
+                top_quartile_gaps=gaps,
+                diagnostico_texto=interp.diagnostico_texto,
+                benchmark_version=_BENCHMARK_VERSION,
+                dimension_version=_DIMENSION_VERSION,
             )
-            for dim, score in r.scores.items()
-        ]
+
         return ResultadoResponse(
-            operator_id=r.operator_id,
-            perfil=r.perfil,
-            friccion_principal=r.friccion_principal,
-            scores=scores,
-            top_quartile_gaps=r.top_quartile_gaps,
-            diagnostico_texto=r.diagnostico_texto,
-            porcentaje_capacidad_varada=r.porcentaje_capacidad_varada,
-            benchmark_version=r.benchmark_version,
-            dimension_version=r.dimension_version,
+            operator_id=operator_id,
+            perfil=interp.perfil,
+            friccion_principal=interp.friccion_principal,
+            scores=[
+                ScoreDimension(
+                    dimension=dim,
+                    score=score,
+                    percentil=percentiles.get(dim, 50.0),
+                    descripcion_breve="",
+                )
+                for dim, score in scores.items()
+            ],
+            top_quartile_gaps=gaps,
+            diagnostico_texto=interp.diagnostico_texto,
+            porcentaje_capacidad_varada=pct_varada,
+            benchmark_version=_BENCHMARK_VERSION,
+            dimension_version=_DIMENSION_VERSION,
         )
+
+    def pdf_input(self, operator_id: str) -> PDFInputResponse | None:
+        """Lee el resultado ya calculado desde DB (no recalcula)."""
+        with get_session() as session:
+            result = self._repo.obtener_resultado(session, operator_id)
+            if result is None:
+                return None
+            return PDFInputResponse(
+                operator_id=operator_id,
+                perfil=result.profile,
+                friccion_principal=result.friccion_principal,
+                scores=[
+                    ScoreDimension(
+                        dimension=k,
+                        score=0.0,
+                        percentil=v,
+                        descripcion_breve="",
+                    )
+                    for k, v in result.percentiles.items()
+                ],
+                top_quartile_gaps=result.top_quartile_gaps,
+                diagnostico_texto=result.diagnostico_texto,
+                porcentaje_capacidad_varada=None,
+                benchmark_version=_BENCHMARK_VERSION,
+                dimension_version=_DIMENSION_VERSION,
+            )
