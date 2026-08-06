@@ -26,13 +26,37 @@ from app.repositories.benchmark_repository import BenchmarkRepository
 from app.schemas.request import CuestionarioRequest
 from app.schemas.response import PDFInputResponse, ResultadoResponse, ScoreDimension
 
-# Dataset público sintético en memoria mientras no existe el CSV real (backlog §12 paso 2)
-# En producción: cargar desde dataset_publico_sintetico.csv
-_DATASET_SINTETICO: dict[str, list[float]] = {
-    dim: [float(i) for i in range(0, 101, 2)]   # 51 valores: 0,2,4,...,100
-    for dim in ["latencia", "visibilidad", "atribucion_friccion",
-                "auto_cuantificacion", "bloqueantes"]
-}
+
+def _cargar_dataset_publico() -> dict[str, list[float]]:
+    """
+    Carga el dataset público sintético desde dimension_scores (source=public_synthetic).
+    Si no hay datos, devuelve un dataset vacío por dimensión.
+    """
+    dataset: dict[str, list[float]] = {
+        dim: [] for dim in ["latencia", "visibilidad", "atribucion_friccion",
+                           "auto_cuantificacion", "bloqueantes"]
+    }
+    
+    try:
+        with get_session() as session:
+            from app.models.tables import DimensionScore, SourceEnum, Operator
+            
+            # Obtener scores públicos por dimensión
+            scores_publicos = session.query(DimensionScore.score, DimensionScore.dimension)\
+                .join(Operator, Operator.id == DimensionScore.operator_id)\
+                .filter(Operator.source == SourceEnum.public_synthetic)\
+                .all()
+            
+            for score, dimension in scores_publicos:
+                if dimension.value in dataset:
+                    dataset[dimension.value].append(score)
+                    
+    except Exception as e:
+        print(f"Error cargando dataset público: {e}")
+        # Dataset vacío por defecto
+        pass
+    
+    return dataset
 
 _GRUPO_DEFAULT = "global"
 _BENCHMARK_VERSION = "1.0.0"
@@ -67,13 +91,16 @@ class BenchmarkService:
         # ── 3. Grupos comparables (motor 3.2) — placeholder simple ────────────
         grupo = _GRUPO_DEFAULT   # TODO: segmentar por region/facility_size/dc_type
 
-        # ── 4. Rebalanceo (motor 3.3) ─────────────────────────────────────────
+        # ── 4. Cargar dataset público desde BD (PR 1) ────────────────────────
+        dataset_publico = _cargar_dataset_publico()
+
+        # ── 5. Rebalanceo (motor 3.3) ─────────────────────────────────────────
         # Sin datos primarios al inicio → 100% público (doc §9)
         rebalanceo_por_dim = {}
         distribuciones = {}
         for dim in scores:
             rb = self._rebalanceo.rebalancear(
-                scores_publicos=_DATASET_SINTETICO.get(dim, []),
+                scores_publicos=dataset_publico.get(dim, []),
                 scores_primarios=[],   # dataset primario vacío al inicio
                 categorias_cubiertas=0,
             )
