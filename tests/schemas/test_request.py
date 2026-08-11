@@ -23,24 +23,24 @@ from app.schemas.request import (
 def _payload_valido() -> dict:
     return {
         "contexto": {
-            "facility_size": "1_5mw",
+            "facility_size": "1-5MW",
             "region": "latam",
             "dc_type": "colocation",
         },
         "latencia": {
             "p1_minutos": 8.0,
             "p2_minutos": 20.0,
-            "p3": "alertas_accion_manual",
+            "p3": "alertas_manual",
         },
         "visibilidad": {
             "p1_sistemas": 2,
             "p2": "diario",
-            "p3": "rol_especifico",
+            "p3": "un_rol",
         },
         "atribucion_friccion": {
             "p1": "energia_cooling",
             "p2": "estimacion",
-            "p3": "periodicamente",
+            "p3": "revision_periodica",
         },
         "auto_cuantificacion": {
             "p1_capacidad_total": 5.0,
@@ -126,14 +126,14 @@ def test_visibilidad_p2_invalido_falla():
 # ── Atribución — caso borde "no_sabria" ───────────────────────────────────────
 
 def test_atribucion_no_sabria_se_acepta():
-    """Cuando p1='no_sabria', se acepta; el engine asignará p2/p3=0."""
-    r = RespuestasAtribucion(p1="no_sabria", p2="sin_evidencia", p3="nunca")
-    assert r.p1 == "no_sabria"
+    """Cuando p1='no_sabria_decir', se acepta; el engine asignará p2/p3=0."""
+    r = RespuestasAtribucion(p1="no_sabria_decir", p2="sin_evidencia", p3="nunca_revisada")
+    assert r.p1 == "no_sabria_decir"
 
 
 def test_atribucion_p1_invalido_falla():
     with pytest.raises(ValidationError):
-        RespuestasAtribucion(p1="interfaz_inexistente", p2="con_evidencia", p3="activamente")
+        RespuestasAtribucion(p1="interfaz_inexistente", p2="con_medicion", p3="revision_activa")
 
 
 # ── Auto-cuantificación — coherencia P1/P2 ───────────────────────────────────
@@ -166,7 +166,7 @@ def test_auto_cuant_ambos_none_valido():
         p1_capacidad_total=None,
         p2_capacidad_utilizable=None,
         unidad="kw",
-        p3="nunca",
+        p3="nunca_remedido",
     )
     assert r.p1_capacidad_total is None
 
@@ -177,7 +177,7 @@ def test_auto_cuant_p1_cero_p2_cero_valido():
         p1_capacidad_total=0.0,
         p2_capacidad_utilizable=0.0,
         unidad="mw",
-        p3="nunca",
+        p3="nunca_remedido",
     )
     assert r.p2_capacidad_utilizable == 0.0
 

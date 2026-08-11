@@ -15,10 +15,10 @@ from app.schemas.request import CuestionarioRequest
 def _req(**overrides) -> CuestionarioRequest:
     """Request base completo y válido."""
     data = {
-        "contexto": {"facility_size": "1_5mw", "region": "latam", "dc_type": "colocation"},
-        "latencia": {"p1_minutos": 8.0, "p2_minutos": 20.0, "p3": "alertas_accion_manual"},
-        "visibilidad": {"p1_sistemas": 2, "p2": "diario", "p3": "rol_especifico"},
-        "atribucion_friccion": {"p1": "energia_cooling", "p2": "estimacion", "p3": "periodicamente"},
+        "contexto": {"facility_size": "1-5MW", "region": "latam", "dc_type": "colocation"},
+        "latencia": {"p1_minutos": 8.0, "p2_minutos": 20.0, "p3": "alertas_manual"},
+        "visibilidad": {"p1_sistemas": 2, "p2": "diario", "p3": "un_rol"},
+        "atribucion_friccion": {"p1": "energia_cooling", "p2": "estimacion", "p3": "revision_periodica"},
         "auto_cuantificacion": {
             "p1_capacidad_total": 10.0,
             "p2_capacidad_utilizable": 7.0,
@@ -71,8 +71,8 @@ def test_latencia_score_minimo(engine):
 
 
 def test_latencia_score_mixto(engine):
-    """8 min (→75) + 20 min (→75) + alertas_accion_manual (→67) → (75+75+67)/3 = 72.33"""
-    req = _req(latencia={"p1_minutos": 8, "p2_minutos": 20, "p3": "alertas_accion_manual"})
+    """8 min (→75) + 20 min (→75) + alertas_manual (→67) → (75+75+67)/3 = 72.33"""
+    req = _req(latencia={"p1_minutos": 8, "p2_minutos": 20, "p3": "alertas_manual"})
     sd = engine.score(req).get("latencia")
     assert sd.score == pytest.approx((75 + 75 + 67) / 3, abs=0.01)
 
@@ -86,17 +86,17 @@ def test_latencia_limite_bucket_5_vs_6(engine):
 
 
 def test_latencia_raw_answers_guardados(engine):
-    req = _req(latencia={"p1_minutos": 8.5, "p2_minutos": 20.0, "p3": "alertas_accion_manual"})
+    req = _req(latencia={"p1_minutos": 8.5, "p2_minutos": 20.0, "p3": "alertas_manual"})
     sd = engine.score(req).get("latencia")
     assert sd.raw_answers["p1_minutos"] == 8.5
-    assert sd.raw_answers["p3"] == "alertas_accion_manual"
+    assert sd.raw_answers["p3"] == "alertas_manual"
 
 
 # ── Visibilidad — fórmula (score_p1 + score_p2 + score_p3) / 3 ───────────────
 
 def test_visibilidad_score_maximo(engine):
-    """1 sistema + tiempo_real + cualquier_responsable → (100+100+100)/3 = 100"""
-    req = _req(visibilidad={"p1_sistemas": 1, "p2": "tiempo_real", "p3": "cualquier_responsable"})
+    """1 sistema + tiempo_real + cualquiera → (100+100+100)/3 = 100"""
+    req = _req(visibilidad={"p1_sistemas": 1, "p2": "tiempo_real", "p3": "cualquiera"})
     sd = engine.score(req).get("visibilidad")
     assert sd.score == pytest.approx(100.0)
 
@@ -108,7 +108,7 @@ def test_visibilidad_score_minimo(engine):
 
 
 def test_visibilidad_2_sistemas_score_67(engine):
-    req = _req(visibilidad={"p1_sistemas": 2, "p2": "diario", "p3": "rol_especifico"})
+    req = _req(visibilidad={"p1_sistemas": 2, "p2": "diario", "p3": "un_rol"})
     sd = engine.score(req).get("visibilidad")
     assert sd.desglose["p1"] == 67
     assert sd.desglose["p2"] == 75
@@ -120,36 +120,36 @@ def test_visibilidad_2_sistemas_score_67(engine):
 def test_atribucion_p1_no_entra_al_score(engine):
     """Cambiar P1 no debe cambiar el score."""
     r1 = engine.score(_req(atribucion_friccion={
-        "p1": "energia_cooling", "p2": "con_evidencia", "p3": "activamente"
+        "p1": "energia_cooling", "p2": "con_medicion", "p3": "revision_activa"
     }))
     r2 = engine.score(_req(atribucion_friccion={
-        "p1": "workload_energia", "p2": "con_evidencia", "p3": "activamente"
+        "p1": "workload_energia", "p2": "con_medicion", "p3": "revision_activa"
     }))
     assert r1.get("atribucion_friccion").score == r2.get("atribucion_friccion").score
 
 
 def test_atribucion_score_maximo(engine):
-    """con_evidencia (100) + activamente (100) → 100"""
+    """con_medicion (100) + revision_activa (100) → 100"""
     req = _req(atribucion_friccion={
-        "p1": "energia_cooling", "p2": "con_evidencia", "p3": "activamente"
+        "p1": "energia_cooling", "p2": "con_medicion", "p3": "revision_activa"
     })
     sd = engine.score(req).get("atribucion_friccion")
     assert sd.score == pytest.approx(100.0)
 
 
 def test_atribucion_caso_borde_no_sabria(engine):
-    """P1='no_sabria' → P2 y P3 se fuerzan a 0 → score = 0."""
+    """P1='no_sabria_decir' → P2 y P3 se fuerzan a 0 → score = 0."""
     req = _req(atribucion_friccion={
-        "p1": "no_sabria", "p2": "con_evidencia", "p3": "activamente"
+        "p1": "no_sabria_decir", "p2": "con_medicion", "p3": "revision_activa"
     })
     sd = engine.score(req).get("atribucion_friccion")
     assert sd.score == pytest.approx(0.0)
-    assert "no_sabria" in sd.notas[0]
+    assert "no_sabria_decir" in sd.notas[0]
 
 
 def test_atribucion_p1_guardado_en_raw(engine):
     req = _req(atribucion_friccion={
-        "p1": "cooling_workload", "p2": "estimacion", "p3": "nunca"
+        "p1": "cooling_workload", "p2": "estimacion", "p3": "nunca_revisada"
     })
     sd = engine.score(req).get("atribucion_friccion")
     assert sd.raw_answers["p1"] == "cooling_workload"
@@ -158,12 +158,12 @@ def test_atribucion_p1_guardado_en_raw(engine):
 # ── Auto-cuantificación — fórmula (completitud + score_p3) / 2 ───────────────
 
 def test_auto_cuant_score_maximo(engine):
-    """P1/P2 coherentes (→100) + tiempo_real (→100) → 100"""
+    """P1/P2 coherentes (→100) + continuamente (→100) → 100"""
     req = _req(auto_cuantificacion={
         "p1_capacidad_total": 10.0,
         "p2_capacidad_utilizable": 8.0,
         "unidad": "mw",
-        "p3": "tiempo_real",
+        "p3": "continuamente",
     })
     sd = engine.score(req).get("auto_cuantificacion")
     assert sd.score == pytest.approx(100.0)
@@ -198,7 +198,7 @@ def test_auto_cuant_pct_varada_none_sin_datos(engine):
         "p1_capacidad_total": None,
         "p2_capacidad_utilizable": None,
         "unidad": "kw",
-        "p3": "nunca",
+        "p3": "nunca_remedido",
     })
     sd = engine.score(req).get("auto_cuantificacion")
     assert sd.raw_answers["pct_varada_calculado"] is None

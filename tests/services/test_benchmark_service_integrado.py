@@ -12,15 +12,15 @@ from sqlalchemy.orm import sessionmaker
 
 from app.models.database import Base
 from app.models.tables import Operator, DimensionScore, Result
-from main import app
+from app.main import app
 
 client = TestClient(app)
 
 _PAYLOAD = {
-    "contexto": {"facility_size": "1_5mw", "region": "latam", "dc_type": "colocation"},
-    "latencia": {"p1_minutos": 8.0, "p2_minutos": 20.0, "p3": "alertas_accion_manual"},
-    "visibilidad": {"p1_sistemas": 2, "p2": "diario", "p3": "rol_especifico"},
-    "atribucion_friccion": {"p1": "energia_cooling", "p2": "estimacion", "p3": "periodicamente"},
+    "contexto": {"facility_size": "1-5MW", "region": "latam", "dc_type": "colocation"},
+    "latencia": {"p1_minutos": 8.0, "p2_minutos": 20.0, "p3": "alertas_manual"},
+    "visibilidad": {"p1_sistemas": 2, "p2": "diario", "p3": "un_rol"},
+    "atribucion_friccion": {"p1": "energia_cooling", "p2": "estimacion", "p3": "revision_periodica"},
     "auto_cuantificacion": {
         "p1_capacidad_total": 10.0,
         "p2_capacidad_utilizable": 7.0,
@@ -92,13 +92,13 @@ def test_operator_id_es_uuid():
 def test_scores_caso_maximo():
     """Scores máximos: 0 min + automatizado + 1 sistema + tiempo_real, etc."""
     payload = {
-        "contexto": {"facility_size": "mas_20mw", "region": "europa", "dc_type": "hyperscale"},
+        "contexto": {"facility_size": ">20MW", "region": "europa", "dc_type": "hyperscale"},
         "latencia": {"p1_minutos": 0, "p2_minutos": 0, "p3": "automatizado"},
-        "visibilidad": {"p1_sistemas": 1, "p2": "tiempo_real", "p3": "cualquier_responsable"},
-        "atribucion_friccion": {"p1": "energia_cooling", "p2": "con_evidencia", "p3": "activamente"},
+        "visibilidad": {"p1_sistemas": 1, "p2": "tiempo_real", "p3": "cualquiera"},
+        "atribucion_friccion": {"p1": "energia_cooling", "p2": "con_medicion", "p3": "revision_activa"},
         "auto_cuantificacion": {
             "p1_capacidad_total": 10.0, "p2_capacidad_utilizable": 9.0,
-            "unidad": "mw", "p3": "tiempo_real",
+            "unidad": "mw", "p3": "continuamente",
         },
         "bloqueantes": {"p1_bloqueantes": ["nada"], "p2_severidad": None},
     }
@@ -112,13 +112,13 @@ def test_scores_caso_maximo():
 def test_scores_caso_minimo():
     """Scores mínimos: todo al máximo de fricción."""
     payload = {
-        "contexto": {"facility_size": "menos_1mw", "region": "apac", "dc_type": "edge"},
+        "contexto": {"facility_size": "<1MW", "region": "apac", "dc_type": "edge"},
         "latencia": {"p1_minutos": 2000, "p2_minutos": 2000, "p3": "sin_proceso"},
         "visibilidad": {"p1_sistemas": 10, "p2": "nunca", "p3": "nadie"},
-        "atribucion_friccion": {"p1": "no_sabria", "p2": "sin_evidencia", "p3": "nunca"},
+        "atribucion_friccion": {"p1": "no_sabria_decir", "p2": "sin_evidencia", "p3": "nunca_revisada"},
         "auto_cuantificacion": {
             "p1_capacidad_total": None, "p2_capacidad_utilizable": None,
-            "unidad": "kw", "p3": "nunca",
+            "unidad": "kw", "p3": "nunca_remedido",
         },
         "bloqueantes": {
             "p1_bloqueantes": ["presupuesto", "herramientas", "personal"],
