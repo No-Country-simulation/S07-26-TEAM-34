@@ -18,6 +18,11 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./benchmark.db")
 _engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    # Neon (y otros Postgres serverless) cierran conexiones ociosas del lado del server.
+    # Sin esto, la primera query tras un rato de inactividad falla con
+    # "SSL connection has been closed unexpectedly" en vez de reconectar.
+    pool_pre_ping=True,
+    pool_recycle=300,
 )
 
 # SQLite: activar foreign keys (desactivadas por defecto)
