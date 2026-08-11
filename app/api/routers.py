@@ -4,6 +4,7 @@ No calculan nada.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import yaml
@@ -13,8 +14,18 @@ from app.schemas.request import CuestionarioRequest
 from app.schemas.response import PDFInputResponse, ResultadoResponse
 from app.services.benchmark_service import BenchmarkService
 
+
+def _construir_llm_client():
+    """Gemini si hay API key configurada; si no, None → InterpretationEngine
+    usa el fallback determinista (doc §7 — el sistema nunca falla por ausencia de LLM)."""
+    if not os.environ.get("GEMINI_API_KEY"):
+        return None
+    from app.engines.llm_clients.gemini_client import GeminiClient
+    return GeminiClient()
+
+
 router = APIRouter()
-_service = BenchmarkService()
+_service = BenchmarkService(llm_client=_construir_llm_client())
 
 _QUESTIONNAIRE_YAML_PATH = Path(__file__).parent.parent.parent / "config" / "questionnaire.yaml"
 
