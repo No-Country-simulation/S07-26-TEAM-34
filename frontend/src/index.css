@@ -20,6 +20,12 @@
 
   --animate-fade-up: fade-up 0.7s ease-out both;
   --animate-glow: glow 6s ease-in-out infinite;
+  --animate-draw-line: draw-line 1.4s ease-out 0.3s both;
+}
+
+@keyframes draw-line {
+  from { width: 0%; }
+  to { width: 100%; }
 }
 
 @keyframes fade-up {

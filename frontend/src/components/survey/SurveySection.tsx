@@ -287,9 +287,9 @@ export function SurveySection({
 
 function SectionShell({ children }: { children: ReactNode }) {
   return (
-    <section id="encuesta" className="mx-auto max-w-3xl px-6 py-24 sm:px-8">
+    <section className="mx-auto max-w-3xl px-6 py-16 sm:px-8">
       <div className="mb-12">
-        <span className="font-mono text-xs tracking-widest text-brand-400 uppercase">Paso 1</span>
+        <span className="font-mono text-xs tracking-widest text-brand-400 uppercase">Tu diagnóstico</span>
         <h2 className="mt-3 text-3xl font-bold text-white sm:text-4xl">El diagnóstico</h2>
         <p className="mt-3 max-w-xl text-white/50">
           Menos de 10 minutos. Anónimo. Sin login, sin datos personales.

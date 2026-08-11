@@ -1,4 +1,4 @@
-export function Hero() {
+export function Hero({ onStart }: { onStart: () => void }) {
   return (
     <section className="relative overflow-hidden border-b border-white/5">
       <div className="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_60%_60%_at_50%_20%,black,transparent)]" />
@@ -23,14 +23,15 @@ export function Hero() {
         </p>
 
         <div className="animate-fade-up mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center [animation-delay:240ms]">
-          <a
-            href="#encuesta"
+          <button
+            type="button"
+            onClick={onStart}
             className="rounded-full bg-gradient-to-r from-brand-500 to-accent-500 px-8 py-3.5 text-sm font-semibold text-ink-950 transition hover:opacity-90"
           >
             Empezar diagnóstico gratis →
-          </a>
+          </button>
           <a
-            href="#como-funciona"
+            href="#metodologia"
             className="text-sm font-medium text-white/50 transition hover:text-white"
           >
             Cómo funciona

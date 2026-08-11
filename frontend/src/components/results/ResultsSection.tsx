@@ -21,9 +21,9 @@ const INDICADORES_FUTUROS = [
 
 export function ResultsSection({ resultado }: { resultado: ResultadoResponse | null }) {
   return (
-    <section id="resultados" className="mx-auto max-w-5xl px-6 py-24 sm:px-8">
+    <section className="mx-auto max-w-5xl px-6 py-16 sm:px-8">
       <div className="mb-12">
-        <span className="font-mono text-xs tracking-widest text-accent-400 uppercase">Paso 2</span>
+        <span className="font-mono text-xs tracking-widest text-accent-400 uppercase">Tu diagnóstico</span>
         <h2 className="mt-3 text-3xl font-bold text-white sm:text-4xl">Tu posición en el benchmark</h2>
         <p className="mt-3 max-w-xl text-white/50">
           Comparado contra la distribución de operadores de tu misma industria.
@@ -32,7 +32,7 @@ export function ResultsSection({ resultado }: { resultado: ResultadoResponse | n
 
       {!resultado ? (
         <div className="rounded-2xl border border-dashed border-white/10 bg-ink-800/30 px-8 py-16 text-center">
-          <p className="text-white/40">Completá el diagnóstico arriba para ver tus resultados acá.</p>
+          <p className="text-white/40">Todavía no hay un diagnóstico para mostrar.</p>
         </div>
       ) : (
         <div className="grid gap-8">
