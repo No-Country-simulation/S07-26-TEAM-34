@@ -135,7 +135,10 @@ class BenchmarkService:
         gaps = {b.dimension: b.descripcion for b in top_quartile_result.brechas}
 
         # ── 7. Interpretación (motor 3.6) ─────────────────────────────────────
-        interp = self._interpretacion.interpretar(scores, benchmark_result, top_quartile_result)
+        interp = self._interpretacion.interpretar(
+            scores, benchmark_result, top_quartile_result,
+            raw_answers=raw_answers, contexto=req.contexto.model_dump(),
+        )
 
         # ── 8. Cálculo derivado: % capacidad varada ───────────────────────────
         p1 = req.auto_cuantificacion.p1_capacidad_total

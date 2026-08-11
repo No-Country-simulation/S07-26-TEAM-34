@@ -38,6 +38,23 @@ _PERFILES = {
     "visibilidad_limitada":  "Visibilidad y coordinación cross-layer limitadas",
 }
 
+# Traducción de ids crudos (config/questionnaire.yaml) a texto legible —
+# solo para armar el prompt del LLM, no afecta el scoring.
+_INTERFAZ_FRICCION_LABELS = {
+    "energia_cooling":  "energía–cooling",
+    "cooling_workload": "cooling–workload",
+    "workload_energia": "workload–energía",
+    "no_sabria_decir":  "no identificada por el operador",
+}
+
+_BLOQUEANTE_LABELS = {
+    "presupuesto":         "presupuesto",
+    "autoridad_politica":  "falta de autoridad o decisión política interna",
+    "herramientas":        "falta de herramientas técnicas",
+    "personal":            "falta de personal capacitado",
+    "nada":                "ninguno reportado",
+}
+
 
 @runtime_checkable
 class LLMClient(Protocol):
@@ -67,10 +84,14 @@ class InterpretationEngine:
         scores: dict[str, float],
         benchmark: BenchmarkResult,
         top_quartile: TopQuartileResult,
+        raw_answers: dict[str, dict] | None = None,
+        contexto: dict | None = None,
     ) -> InterpretacionResult:
         perfil = self._asignar_perfil(scores)
         friccion = self._friccion_principal(benchmark)
-        diagnostico, uso_llm = self._redactar(perfil, friccion, scores, benchmark, top_quartile)
+        diagnostico, uso_llm = self._redactar(
+            perfil, friccion, scores, benchmark, top_quartile, raw_answers, contexto
+        )
 
         return InterpretacionResult(
             perfil=perfil,
@@ -112,11 +133,15 @@ class InterpretationEngine:
         scores: dict[str, float],
         benchmark: BenchmarkResult,
         top_quartile: TopQuartileResult,
+        raw_answers: dict[str, dict] | None,
+        contexto: dict | None,
     ) -> tuple[str, bool]:
         """Intenta LLM; si falla usa fallback determinista."""
         if self._llm is not None:
             try:
-                prompt = self._construir_prompt(perfil, friccion, scores, benchmark, top_quartile)
+                prompt = self._construir_prompt(
+                    perfil, friccion, scores, benchmark, top_quartile, raw_answers, contexto
+                )
                 texto = self._llm.generar(prompt)
                 if texto and len(texto.strip()) > 20:
                     return texto.strip(), True
@@ -162,18 +187,49 @@ class InterpretationEngine:
         scores: dict[str, float],
         benchmark: BenchmarkResult,
         top_quartile: TopQuartileResult,
+        raw_answers: dict[str, dict] | None,
+        contexto: dict | None,
     ) -> str:
         if not self._prompt_tpl:
             return ""
+        raw_answers = raw_answers or {}
         brechas = "\n".join(
             f"- {b.descripcion}" for b in top_quartile.brechas
         ) or "Sin brechas identificadas con el cuartil superior."
+
+        contexto_txt = (
+            f"facility {contexto.get('facility_size')}, tipo {contexto.get('dc_type')}, "
+            f"región {contexto.get('region')}"
+            if contexto else "no disponible"
+        )
+
+        interfaz_id = raw_answers.get("atribucion_friccion", {}).get("p1")
+        interfaz_txt = _INTERFAZ_FRICCION_LABELS.get(interfaz_id, "no reportada")
+
+        bloqueantes_ids = raw_answers.get("bloqueantes", {}).get("p1_bloqueantes") or []
+        bloqueantes_txt = ", ".join(
+            _BLOQUEANTE_LABELS.get(b, b) for b in bloqueantes_ids
+        ) or "no reportados"
+
+        auto = raw_answers.get("auto_cuantificacion", {})
+        p1_cap = auto.get("p1_capacidad_total")
+        p2_cap = auto.get("p2_capacidad_utilizable")
+        unidad = auto.get("unidad", "")
+        capacidad_txt = (
+            f"{p1_cap} {unidad} instalada vs. {p2_cap} {unidad} utilizable"
+            if p1_cap is not None and p2_cap is not None
+            else "no reportada por el operador"
+        )
 
         return self._prompt_tpl.format(
             perfil=perfil,
             friccion=friccion,
             scores=str(scores),
             brechas=brechas,
+            contexto=contexto_txt,
+            interfaz_friccion=interfaz_txt,
+            bloqueantes_reportados=bloqueantes_txt,
+            capacidad_texto=capacidad_txt,
         )
 
     @staticmethod
