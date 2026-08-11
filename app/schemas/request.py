@@ -14,14 +14,13 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 # ── Contexto del operador (doc §8) ────────────────────────────────────────────
 
-FacilitySize = Literal["menos_1mw", "1_5mw", "5_20mw", "mas_20mw"]
-Region = Literal["latam", "norteamerica", "europa", "apac", "otro"]
+FacilitySize = Literal["<1MW", "1-5MW", "5-20MW", ">20MW"]
 DcType = Literal["hyperscale", "colocation", "enterprise", "edge"]
 
 
 class ContextoOperador(BaseModel):
     facility_size: FacilitySize
-    region: Region
+    region: Annotated[str, Field(description="Continente o región amplia, no país exacto")]
     dc_type: DcType
 
 
@@ -29,8 +28,8 @@ class ContextoOperador(BaseModel):
 
 AutomatizacionLatencia = Literal[
     "automatizado",
-    "alertas_accion_manual",
-    "reporte_revision_manual",
+    "alertas_manual",
+    "reporte_periodico",
     "sin_proceso",
 ]
 
@@ -44,9 +43,9 @@ class RespuestasLatencia(BaseModel):
 # ── Visibilidad (doc §4) ──────────────────────────────────────────────────────
 
 FrecuenciaConsolidacion = Literal[
-    "tiempo_real", "diario", "semanal", "mensual", "nunca"
+    "tiempo_real", "diario", "semanal", "mensual_o_mas", "nunca"
 ]
-AccesoVista = Literal["cualquier_responsable", "rol_especifico", "nadie"]
+AccesoVista = Literal["cualquiera", "un_rol", "nadie"]
 
 
 class RespuestasVisibilidad(BaseModel):
@@ -60,10 +59,10 @@ class RespuestasVisibilidad(BaseModel):
 # ── Atribución de fricción (doc §5) ──────────────────────────────────────────
 
 InterfazFriccion = Literal[
-    "energia_cooling", "cooling_workload", "workload_energia", "no_sabria"
+    "energia_cooling", "cooling_workload", "workload_energia", "no_sabria_decir"
 ]
-RespalnoAtribucion = Literal["con_evidencia", "estimacion", "sin_evidencia"]
-VigenciaAtribucion = Literal["activamente", "periodicamente", "nunca"]
+RespalnoAtribucion = Literal["con_medicion", "estimacion", "sin_evidencia"]
+VigenciaAtribucion = Literal["revision_activa", "revision_periodica", "nunca_revisada"]
 
 
 class RespuestasAtribucion(BaseModel):
@@ -82,7 +81,7 @@ class RespuestasAtribucion(BaseModel):
 
 UnidadCapacidad = Literal["mw", "kw"]
 FrecuenciaRemedicion = Literal[
-    "tiempo_real", "trimestral_semestral", "anual", "nunca"
+    "continuamente", "trimestral_semestral", "anual", "nunca_remedido"
 ]
 
 
@@ -123,7 +122,7 @@ BloqueanteTipo = Literal[
     "presupuesto", "autoridad_politica", "herramientas", "personal", "nada"
 ]
 SeveridadBloqueante = Literal[
-    "no_bloqueante", "moderado", "fuerte", "estructural"
+    "no_es_real", "moderado", "fuerte", "estructural"
 ]
 
 
