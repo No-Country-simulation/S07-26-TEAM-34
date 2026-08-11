@@ -21,12 +21,17 @@ El Motor 3.4 (benchmark) recibe la distribución ya lista, no la reconstruye.
 """
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass, field
 
 from app.config.loader import get_config
 
 # Constante de suavizado — doc §9: con k=50, n=50 → peso≈50%; n=200 → peso≈80%
 K: int = 50
+
+# Seed fijo para que el muestreo de _mezclar() sea reproducible
+# (mismos inputs → mismos percentiles, requerido para tests determinísticos).
+_SEED: int = 42
 
 
 @dataclass
@@ -125,7 +130,7 @@ class RebalanceEngine:
         Implementación: submuestreo proporcional al peso.
         Con n total = max(len(publicos), 200) mantenemos estabilidad estadística.
         """
-        import math, random
+        import math
 
         if not publicos and not primarios:
             return []
@@ -134,12 +139,13 @@ class RebalanceEngine:
         n_pub = math.ceil(n_total * w_pub)
         n_pri = math.ceil(n_total * w_pri)
 
-        # Muestreo con reemplazo proporcional al peso
+        # Muestreo con reemplazo proporcional al peso — seed fijo para reproducibilidad
+        rng = random.Random(_SEED)
         muestra_pub = (
-            random.choices(publicos, k=n_pub) if publicos and n_pub > 0 else []
+            rng.choices(publicos, k=n_pub) if publicos and n_pub > 0 else []
         )
         muestra_pri = (
-            random.choices(primarios, k=n_pri) if primarios and n_pri > 0 else []
+            rng.choices(primarios, k=n_pri) if primarios and n_pri > 0 else []
         )
 
         combined = muestra_pub + muestra_pri

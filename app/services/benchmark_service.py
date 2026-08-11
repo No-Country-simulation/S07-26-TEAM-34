@@ -27,36 +27,42 @@ from app.schemas.request import CuestionarioRequest
 from app.schemas.response import PDFInputResponse, ResultadoResponse, ScoreDimension
 
 
-def _cargar_dataset_publico() -> dict[str, list[float]]:
-    """
-    Carga el dataset público sintético desde dimension_scores (source=public_synthetic).
-    Si no hay datos, devuelve un dataset vacío por dimensión.
-    """
-    dataset: dict[str, list[float]] = {
-        dim: [] for dim in ["latencia", "visibilidad", "atribucion_friccion",
-                           "auto_cuantificacion", "bloqueantes"]
-    }
-    
-    try:
-        with get_session() as session:
-            from app.models.tables import DimensionScore, SourceEnum, Operator
-            
-            # Obtener scores públicos por dimensión
-            scores_publicos = session.query(DimensionScore.score, DimensionScore.dimension)\
-                .join(Operator, Operator.id == DimensionScore.operator_id)\
-                .filter(Operator.source == SourceEnum.public_synthetic)\
-                .all()
-            
-            for score, dimension in scores_publicos:
-                if dimension.value in dataset:
-                    dataset[dimension.value].append(score)
-                    
-    except Exception as e:
-        print(f"Error cargando dataset público: {e}")
-        # Dataset vacío por defecto
-        pass
-    
+_DIMENSIONES = ["latencia", "visibilidad", "atribucion_friccion",
+                "auto_cuantificacion", "bloqueantes"]
+
+
+def _cargar_scores_por_source(source: "SourceEnum") -> dict[str, list[float]]:
+    """Carga scores por dimensión desde dimension_scores, filtrando por source."""
+    from app.models.tables import DimensionScore, Operator
+
+    dataset: dict[str, list[float]] = {dim: [] for dim in _DIMENSIONES}
+
+    with get_session() as session:
+        filas = session.query(DimensionScore.score, DimensionScore.dimension)\
+            .join(Operator, Operator.id == DimensionScore.operator_id)\
+            .filter(Operator.source == source)\
+            .all()
+
+        for score, dimension in filas:
+            if dimension.value in dataset:
+                dataset[dimension.value].append(score)
+
     return dataset
+
+
+def _contar_categorias_cubiertas_primarias() -> int:
+    """
+    Cuenta combinaciones distintas de (region, facility_size, dc_type)
+    presentes entre los operadores con source=primary (doc §9, factor_diversidad).
+    """
+    from app.models.tables import Operator, SourceEnum
+
+    with get_session() as session:
+        combinaciones = session.query(
+            Operator.region, Operator.facility_size, Operator.dc_type
+        ).filter(Operator.source == SourceEnum.primary).distinct().all()
+
+    return len(combinaciones)
 
 _GRUPO_DEFAULT = "global"
 _BENCHMARK_VERSION = "1.0.0"
@@ -91,18 +97,22 @@ class BenchmarkService:
         # ── 3. Grupos comparables (motor 3.2) — placeholder simple ────────────
         grupo = _GRUPO_DEFAULT   # TODO: segmentar por region/facility_size/dc_type
 
-        # ── 4. Cargar dataset público desde BD (PR 1) ────────────────────────
-        dataset_publico = _cargar_dataset_publico()
+        # ── 4. Cargar datasets desde BD (PR 1) ────────────────────────────────
+        from app.models.tables import SourceEnum
+        dataset_publico = _cargar_scores_por_source(SourceEnum.public_synthetic)
+        dataset_primario = _cargar_scores_por_source(SourceEnum.primary)
+        categorias_cubiertas = _contar_categorias_cubiertas_primarias()
 
         # ── 5. Rebalanceo (motor 3.3) ─────────────────────────────────────────
-        # Sin datos primarios al inicio → 100% público (doc §9)
+        # Con n_valido=0 (sin respuestas primarias todavía) el motor devuelve
+        # peso_primario=0 automáticamente (doc §9) — no hace falta un caso especial acá.
         rebalanceo_por_dim = {}
         distribuciones = {}
         for dim in scores:
             rb = self._rebalanceo.rebalancear(
                 scores_publicos=dataset_publico.get(dim, []),
-                scores_primarios=[],   # dataset primario vacío al inicio
-                categorias_cubiertas=0,
+                scores_primarios=dataset_primario.get(dim, []),
+                categorias_cubiertas=categorias_cubiertas,
             )
             rebalanceo_por_dim[dim] = rb
             distribuciones[dim] = rb.distribucion_combinada
@@ -168,6 +178,32 @@ class BenchmarkService:
             benchmark_version=_BENCHMARK_VERSION,
             dimension_version=_DIMENSION_VERSION,
         )
+
+    def obtener_resultado(self, operator_id: str) -> ResultadoResponse | None:
+        """Lee un resultado ya calculado desde DB (no recalcula)."""
+        with get_session() as session:
+            result = self._repo.obtener_resultado(session, operator_id)
+            if result is None:
+                return None
+            return ResultadoResponse(
+                operator_id=operator_id,
+                perfil=result.profile,
+                friccion_principal=result.friccion_principal,
+                scores=[
+                    ScoreDimension(
+                        dimension=k,
+                        score=0.0,
+                        percentil=v,
+                        descripcion_breve="",
+                    )
+                    for k, v in result.percentiles.items()
+                ],
+                top_quartile_gaps=result.top_quartile_gaps,
+                diagnostico_texto=result.diagnostico_texto,
+                porcentaje_capacidad_varada=None,
+                benchmark_version=_BENCHMARK_VERSION,
+                dimension_version=_DIMENSION_VERSION,
+            )
 
     def pdf_input(self, operator_id: str) -> PDFInputResponse | None:
         """Lee el resultado ya calculado desde DB (no recalcula)."""
