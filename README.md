@@ -1,39 +1,101 @@
-# Datacenter Maturity Benchmark
+# Benchmark de madurez operativa — Data Centers
 
-Motor backend de un benchmark de madurez para data centers: mide coordinación entre energía, cooling y workload en 5 dimensiones, calcula percentiles contra un dataset público/primario con rebalanceo dinámico, y genera un diagnóstico personalizado por operador.
+Motor de benchmark que convierte respuestas anónimas de operadores de data centers en scores por dimensión, percentiles y un diagnóstico personalizado.
 
-Proyecto de simulación laboral — No Country.
+## Qué hace
 
-## Documentación
+```
+Operador responde cuestionario (5 dimensiones)
+    ↓
+Scores determinísticos (0-100 por dimensión)
+    ↓
+Posición relativa en el grupo comparable
+    ↓
+Brechas con el cuartil superior
+    ↓
+Diagnóstico personalizado (reglas + LLM opcional)
+    ↓
+Resultado guardado de forma anónima
+```
 
-- [Marco Metodológico](docs/Documento_Metodologico_Benchmark.md) — las 5 dimensiones del benchmark: preguntas, normalización, fórmulas y calibración de mercado.
-- [Backlog Definitivo](docs/Backlog_Definitivo_v3.md) — motores en scope, arquitectura, stack tecnológico y esquema de base de datos.
+Las 5 dimensiones miden **madurez de coordinación cross-layer** (energía, cooling, workload):
+1. **Latencia de coordinación** — qué tan rápido reacciona el sistema ante cambios
+2. **Visibilidad cross-layer** — si existe una vista unificada de las tres capas
+3. **Atribución de fricción** — dónde se pierde capacidad y con qué evidencia
+4. **Auto-cuantificación** — si el operador puede medir su stranded capacity
+5. **Bloqueantes** — qué impide resolver los problemas identificados
 
-## Configuración
+## Levantar en desarrollo
 
-- [`config/questionnaire.yaml`](config/questionnaire.yaml) — fuente única de verdad de preguntas, opciones y scores.
-- [`config/dataset_publico_sintetico.csv`](config/dataset_publico_sintetico.csv) — dataset público inicial (simulado, ver documento metodológico sección 2.7).
-- [`config/generar_dataset_publico.py`](config/generar_dataset_publico.py) — script que genera el dataset sintético.
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+
+# Cargar dataset público sintético (referencia inicial)
+.venv/bin/python config/seed_public_dataset.py
+
+# Levantar la API
+.venv/bin/uvicorn app.main:app --reload
+```
+
+La API queda disponible en `http://localhost:8000`. Documentación interactiva en `http://localhost:8000/docs`.
+
+## Correr tests
+
+```bash
+.venv/bin/pytest tests/
+```
+
+## Variables de entorno
+
+Copiar `.env.example` a `.env` y completar:
+
+| Variable | Requerida | Descripción |
+|---|---|---|
+| `DATABASE_URL` | En producción | URL de PostgreSQL (Neon). Sin ella usa SQLite local. |
+| `GEMINI_API_KEY` | No | API key de Gemini para diagnósticos con LLM. Sin ella usa fallback determinista. |
+
+## Deploy en Render
+
+El archivo `render.yaml` contiene la configuración completa. Las variables `DATABASE_URL` y `GEMINI_API_KEY` se configuran manualmente en el dashboard de Render.
+
+Comando de inicio: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+## Endpoints principales
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/questionnaire` | Cuestionario para el frontend |
+| `POST` | `/api/v1/respuestas` | Procesa una respuesta y devuelve el diagnóstico |
+| `GET` | `/api/v1/resultados/{id}` | Recupera un resultado ya calculado |
+| `GET` | `/api/v1/resultados/{id}/pdf` | Payload para generación de PDF |
+| `GET` | `/health` | Health check (Render) |
 
 ## Estructura del proyecto
 
 ```
 app/
-├── api/            # routers
-├── schemas/        # esquemas de Pydantic
-├── models/         # modelos de base de datos
-├── engines/        # lógica de cálculo
-├── repositories/   # acceso a base de datos
-├── services/       # orquestación
-└── prompts/        # plantillas de prompt del LLM
+├── main.py                  # Punto de entrada FastAPI + CORS
+├── api/routers.py           # Endpoints
+├── config/loader.py         # Lee config/questionnaire.yaml
+├── engines/                 # 7 motores de cálculo determinístico
+├── models/                  # 3 tablas SQLAlchemy
+├── repositories/            # Acceso a DB
+├── schemas/                 # Validación Pydantic entrada/salida
+├── services/                # Orquestador del pipeline
+└── prompts/diagnostico.txt  # Template del prompt LLM
 
-tests/
 config/
-docs/
+├── questionnaire.yaml              # Fuente única de preguntas y scores
+├── dataset_publico_sintetico.csv   # 1.000 filas de referencia (sintético)
+├── generar_dataset_publico.py      # Regenera el CSV si hace falta
+└── seed_public_dataset.py          # Carga el CSV en la DB
 ```
 
-## Stack
+## Notas metodológicas
 
-Python + FastAPI + Pydantic · PostgreSQL (Docker, Neon) · Next.js (Vercel) · pytest
-
-Ver detalle completo en el [Backlog Definitivo](docs/Backlog_Definitivo_v3.md), sección 10.
+- El LLM **nunca calcula scores, percentiles ni elige el perfil** — solo redacta texto
+- El dataset inicial es **sintético**, calibrado contra reportes públicos de la industria (Uptime Institute, Gartner). No son datos de operadores reales
+- Los percentiles mejoran a medida que se acumulan respuestas primarias (rebalanceo dinámico)
+- Ver `Documento_Metodologico_Benchmark.md` para el marco metodológico completo
+- Ver `Backlog_Definitivo_v3.md` para el alcance del MVP

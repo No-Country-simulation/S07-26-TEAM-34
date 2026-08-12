@@ -25,9 +25,10 @@ venv/
 env/
 ENV/
 
-# Base de datos de desarrollo
+# Archivos generados / runtime
 *.db
 *.sqlite3
+*.sqlite
 
 # Alembic (solo conservar el directorio, no la DB)
 alembic/__pycache__/
