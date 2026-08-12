@@ -20,8 +20,45 @@ from app.repositories.benchmark_repository import BenchmarkRepository
 from app.schemas.request import CuestionarioRequest
 from app.schemas.response import PDFInputResponse, ResultadoResponse, ScoreDimension
 
+
 _DIMENSIONES = ["latencia", "visibilidad", "atribucion_friccion",
                 "auto_cuantificacion", "bloqueantes"]
+
+
+def _cargar_scores_por_source(source: "SourceEnum") -> dict[str, list[float]]:
+    """Carga scores por dimensión desde dimension_scores, filtrando por source."""
+    from app.models.tables import DimensionScore, Operator
+
+    dataset: dict[str, list[float]] = {dim: [] for dim in _DIMENSIONES}
+
+    with get_session() as session:
+        filas = session.query(DimensionScore.score, DimensionScore.dimension)\
+            .join(Operator, Operator.id == DimensionScore.operator_id)\
+            .filter(Operator.source == source)\
+            .all()
+
+        for score, dimension in filas:
+            if dimension.value in dataset:
+                dataset[dimension.value].append(score)
+
+    return dataset
+
+
+def _contar_categorias_cubiertas_primarias() -> int:
+    """
+    Cuenta combinaciones distintas de (region, facility_size, dc_type)
+    presentes entre los operadores con source=primary (doc §9, factor_diversidad).
+    """
+    from app.models.tables import Operator, SourceEnum
+
+    with get_session() as session:
+        combinaciones = session.query(
+            Operator.region, Operator.facility_size, Operator.dc_type
+        ).filter(Operator.source == SourceEnum.primary).distinct().all()
+
+    return len(combinaciones)
+
+_GRUPO_DEFAULT = "global"
 _BENCHMARK_VERSION = "1.0.0"
 _DIMENSION_VERSION = "1.0.0"
 
@@ -95,12 +132,16 @@ class BenchmarkService:
                 session=session,
             )
 
-        # 4. Dataset desde BD filtrado por grupo
-        dataset_publico = _cargar_scores_por_source(SourceEnum.public_synthetic, peer.grupo_id)
-        dataset_primario = _cargar_scores_por_source(SourceEnum.primary, peer.grupo_id)
+        # ── 4. Cargar datasets desde BD (PR 1) ────────────────────────────────
+        from app.models.tables import SourceEnum
+        dataset_publico = _cargar_scores_por_source(SourceEnum.public_synthetic)
+        dataset_primario = _cargar_scores_por_source(SourceEnum.primary)
         categorias_cubiertas = _contar_categorias_cubiertas_primarias()
 
-        # 5. Rebalanceo
+        # ── 5. Rebalanceo (motor 3.3) ─────────────────────────────────────────
+        # Con n_valido=0 (sin respuestas primarias todavía) el motor devuelve
+        # peso_primario=0 automáticamente (doc §9) — no hace falta un caso especial acá.
+        rebalanceo_por_dim = {}
         distribuciones = {}
         for dim in scores:
             rb = self._rebalanceo.rebalancear(
@@ -127,7 +168,7 @@ class BenchmarkService:
         )
         gaps = {b.dimension: b.descripcion for b in top_quartile_result.brechas}
 
-        # 8. Interpretación
+        # ── 7. Interpretación (motor 3.6) ─────────────────────────────────────
         interp = self._interpretacion.interpretar(
             scores, benchmark_result, top_quartile_result,
             raw_answers=raw_answers, contexto=req.contexto.model_dump(),
@@ -174,6 +215,7 @@ class BenchmarkService:
         )
 
     def obtener_resultado(self, operator_id: str) -> ResultadoResponse | None:
+        """Lee un resultado ya calculado desde DB (no recalcula)."""
         with get_session() as session:
             result = self._repo.obtener_resultado(session, operator_id)
             if result is None:
@@ -183,7 +225,12 @@ class BenchmarkService:
                 perfil=result.profile,
                 friccion_principal=result.friccion_principal,
                 scores=[
-                    ScoreDimension(dimension=k, score=0.0, percentil=v, descripcion_breve="")
+                    ScoreDimension(
+                        dimension=k,
+                        score=0.0,
+                        percentil=v,
+                        descripcion_breve="",
+                    )
                     for k, v in result.percentiles.items()
                 ],
                 top_quartile_gaps=result.top_quartile_gaps,

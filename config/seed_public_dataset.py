@@ -1,16 +1,18 @@
 """
-Seed del dataset público sintético (backlog §11, §12 paso 2).
+Seed del dataset público sintético (PR 1 — backlog §11).
 
-Carga config/dataset_publico_sintetico.csv (1000 filas calibradas contra
-fuentes públicas de la industria) en las tablas operators y dimension_scores
-con source="public_synthetic".
+Carga config/dataset_publico_sintetico.csv (1000 filas, calibradas contra
+fuentes públicas de la industria — Uptime Institute, Gartner, entre otros)
+en las tablas operators y dimension_scores con source="public_synthetic".
 
-El CSV ya trae los scores por dimensión precalculados — este script
-NO regenera datos ni recalcula scores, solo los persiste tal cual.
+El CSV ya trae los scores por dimensión precalculados durante la calibración
+(columnas *_score) — este script NO regenera datos ni recalcula scores,
+solo los persiste tal cual.
 
 Uso:
-    python config/seed_public_dataset.py
-    python config/seed_public_dataset.py --force   # sobrescribe registros existentes
+    python -m config.seed_public_dataset [--force]
+    o desde la raíz:
+    python config/seed_public_dataset.py [--force]
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Añadir el directorio raíz al path para imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.config.loader import get_config
@@ -35,6 +38,11 @@ def _fila_a_raw_answers(fila: dict, campos: list[str]) -> dict:
 
 
 def cargar_csv_en_bd(csv_path: Path, force: bool = False) -> int:
+    """
+    Lee el CSV calibrado y carga las filas en operators + dimension_scores.
+    Si ya hay datos con source="public_synthetic" y force=False, no los duplica.
+    Retorna el número de registros cargados.
+    """
     Base.metadata.create_all(get_engine())
     cfg = get_config()
 
@@ -59,7 +67,7 @@ def cargar_csv_en_bd(csv_path: Path, force: bool = False) -> int:
             session.query(Operator).filter_by(source=SourceEnum.public_synthetic).delete()
             session.commit()
 
-        print(f"Cargando {len(filas)} registros...")
+        print(f"Cargando {len(filas)} registros en la base de datos...")
         cargados = 0
 
         for fila in filas:
@@ -68,9 +76,9 @@ def cargar_csv_en_bd(csv_path: Path, force: bool = False) -> int:
             session.add(Operator(
                 id=operator_id,
                 source=SourceEnum.public_synthetic,
-                region=fila.get("region", ""),
-                facility_size=fila.get("tamano_facility", ""),
-                dc_type=fila.get("tipo_data_center", "").lower(),
+                region=fila["region"],
+                facility_size=fila["tamano_facility"],
+                dc_type=fila["tipo_data_center"].lower(),
                 benchmark_version=cfg.version,
                 dimension_version=cfg.version,
                 created_at=datetime.now(timezone.utc),
@@ -89,8 +97,7 @@ def cargar_csv_en_bd(csv_path: Path, force: bool = False) -> int:
                 dimension=DimensionEnum.visibilidad,
                 score=float(fila["vis_score"]),
                 raw_answers=_fila_a_raw_answers(
-                    fila, ["vis_p1_cantidad_sistemas", "vis_p2_frecuencia_consolidacion",
-                           "vis_p3_acceso_vista_unificada"]
+                    fila, ["vis_p1_cantidad_sistemas", "vis_p2_frecuencia_consolidacion", "vis_p3_acceso_vista_unificada"]
                 ),
             ))
             session.add(DimensionScore(
@@ -106,8 +113,13 @@ def cargar_csv_en_bd(csv_path: Path, force: bool = False) -> int:
                 dimension=DimensionEnum.auto_cuantificacion,
                 score=float(fila["auto_score"]),
                 raw_answers=_fila_a_raw_answers(
-                    fila, ["auto_p1_capacidad_instalada_mw", "auto_p2_capacidad_utilizable_mw",
-                           "auto_pct_varada_calculado", "auto_p3_frecuencia_remedicion"]
+                    fila,
+                    [
+                        "auto_p1_capacidad_instalada_mw",
+                        "auto_p2_capacidad_utilizable_mw",
+                        "auto_pct_varada_calculado",
+                        "auto_p3_frecuencia_remedicion",
+                    ],
                 ),
             ))
             session.add(DimensionScore(
@@ -137,11 +149,19 @@ def main():
         sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Seed del dataset público sintético")
-    parser.add_argument("--force", action="store_true",
-                        help="Sobrescribir datos existentes en BD")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Sobrescribir datos existentes en BD",
+    )
     args = parser.parse_args()
 
-    print(f"CSV encontrado: {DATASET_CSV_PATH}")
+    if not DATASET_CSV_PATH.exists():
+        raise FileNotFoundError(
+            f"No se encontró {DATASET_CSV_PATH}. "
+            "Este archivo debe existir versionado en el repo — no se genera en runtime."
+        )
+
     cargar_csv_en_bd(DATASET_CSV_PATH, args.force)
 
 

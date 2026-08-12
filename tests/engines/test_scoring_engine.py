@@ -71,7 +71,7 @@ def test_latencia_score_minimo(engine):
 
 
 def test_latencia_score_mixto(engine):
-    """8 min (→75) + 20 min (→75) + alertas_accion_manual (→67) → (75+75+67)/3 = 72.33"""
+    """8 min (→75) + 20 min (→75) + alertas_manual (→67) → (75+75+67)/3 = 72.33"""
     req = _req(latencia={"p1_minutos": 8, "p2_minutos": 20, "p3": "alertas_manual"})
     sd = engine.score(req).get("latencia")
     assert sd.score == pytest.approx((75 + 75 + 67) / 3, abs=0.01)
@@ -138,7 +138,7 @@ def test_atribucion_score_maximo(engine):
 
 
 def test_atribucion_caso_borde_no_sabria(engine):
-    """P1='no_sabria' → P2 y P3 se fuerzan a 0 → score = 0."""
+    """P1='no_sabria_decir' → P2 y P3 se fuerzan a 0 → score = 0."""
     req = _req(atribucion_friccion={
         "p1": "no_sabria_decir", "p2": "con_medicion", "p3": "revision_activa"
     })

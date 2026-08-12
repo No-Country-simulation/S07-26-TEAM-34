@@ -13,11 +13,12 @@ Estructura del razonamiento (no lo muestres como lista, integralo en prosa):
 Reglas:
 - Preferí lenguaje de hipótesis razonada ("esto sugiere", "es consistente
   con", "un indicio de") sobre lenguaje categórico ("tu problema es",
-  "esto significa que").
+  "esto significa que"). El objetivo es una lectura socrática, no un
+  veredicto.
 - No repitas los números de score tal cual — el operador ya los ve en
   pantalla. Citalos solo cuando sostienen un paso del razonamiento.
 - No inventes datos que no estén en esta lista. No afirmes causalidad no
-  demostrada.
+  demostrada — si dos señales son solo correlativas, decilo así.
 
 Contexto del operador: {contexto}
 Perfil asignado: {perfil}

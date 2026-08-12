@@ -46,6 +46,23 @@ _DIM_LABELS = {
     "bloqueantes":         "gestión de bloqueantes",
 }
 
+# Traducción de ids crudos (config/questionnaire.yaml) a texto legible —
+# solo para armar el prompt del LLM, no afecta el scoring.
+_INTERFAZ_FRICCION_LABELS = {
+    "energia_cooling":  "energía–cooling",
+    "cooling_workload": "cooling–workload",
+    "workload_energia": "workload–energía",
+    "no_sabria_decir":  "no identificada por el operador",
+}
+
+_BLOQUEANTE_LABELS = {
+    "presupuesto":         "presupuesto",
+    "autoridad_politica":  "falta de autoridad o decisión política interna",
+    "herramientas":        "falta de herramientas técnicas",
+    "personal":            "falta de personal capacitado",
+    "nada":                "ninguno reportado",
+}
+
 
 @runtime_checkable
 class LLMClient(Protocol):
@@ -78,6 +95,7 @@ class InterpretationEngine:
         diagnostico, uso_llm = self._redactar(
             perfil, friccion, scores, benchmark, top_quartile, raw_answers, contexto
         )
+
         return InterpretacionResult(
             perfil=perfil,
             friccion_principal=friccion,
@@ -103,7 +121,17 @@ class InterpretationEngine:
             return "latencia"
         return min(benchmark.dimensiones, key=lambda d: d.percentil).dimension
 
-    def _redactar(self, perfil, friccion, scores, benchmark, top_quartile, raw_answers, contexto):
+    def _redactar(
+        self,
+        perfil: str,
+        friccion: str,
+        scores: dict[str, float],
+        benchmark: BenchmarkResult,
+        top_quartile: TopQuartileResult,
+        raw_answers: dict[str, dict] | None,
+        contexto: dict | None,
+    ) -> tuple[str, bool]:
+        """Intenta LLM; si falla usa fallback determinista."""
         if self._llm is not None:
             try:
                 prompt = self._construir_prompt(
@@ -130,13 +158,22 @@ class InterpretationEngine:
             "de operadores comparables."
         )
 
-    def _construir_prompt(self, perfil, friccion, scores, benchmark, top_quartile,
-                          raw_answers, contexto) -> str:
+    def _construir_prompt(
+        self,
+        perfil: str,
+        friccion: str,
+        scores: dict[str, float],
+        benchmark: BenchmarkResult,
+        top_quartile: TopQuartileResult,
+        raw_answers: dict[str, dict] | None,
+        contexto: dict | None,
+    ) -> str:
         if not self._prompt_tpl:
             return ""
         raw_answers = raw_answers or {}
-        brechas = "\n".join(f"- {b.descripcion}" for b in top_quartile.brechas) \
-            or "Sin brechas identificadas con el cuartil superior."
+        brechas = "\n".join(
+            f"- {b.descripcion}" for b in top_quartile.brechas
+        ) or "Sin brechas identificadas con el cuartil superior."
 
         contexto_txt = (
             f"facility {contexto.get('facility_size')}, tipo {contexto.get('dc_type')}, "
@@ -158,7 +195,8 @@ class InterpretationEngine:
         unidad = auto.get("unidad", "")
         capacidad_txt = (
             f"{p1_cap} {unidad} instalada vs. {p2_cap} {unidad} utilizable"
-            if p1_cap is not None and p2_cap is not None else "no reportada"
+            if p1_cap is not None and p2_cap is not None
+            else "no reportada por el operador"
         )
 
         return self._prompt_tpl.format(

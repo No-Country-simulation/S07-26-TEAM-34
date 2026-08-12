@@ -19,15 +19,17 @@ from pathlib import Path
 
 import yaml
 
-# Mapea los ids largos de questionnaire.yaml → ids cortos usados por scoring_engine.py
+# Mapea los ids largos de config/questionnaire.yaml a los ids cortos
+# que usan scoring_engine.py y rebalance_engine.py.
 _DIMENSION_ID_MAP: dict[str, str] = {
-    "latencia_coordinacion":   "latencia",
+    "latencia_coordinacion": "latencia",
     "visibilidad_cross_layer": "visibilidad",
-    "atribucion_friccion":     "atribucion_friccion",
-    "auto_cuantificacion":     "auto_cuantificacion",
-    "bloqueantes":             "bloqueantes",
+    "atribucion_friccion": "atribucion_friccion",
+    "auto_cuantificacion": "auto_cuantificacion",
+    "bloqueantes": "bloqueantes",
 }
 
+# Score por cantidad de bloqueantes marcados (doc §7, derived.cantidad_p1_score).
 _SCORE_CANTIDAD_BLOQUEANTES_DEFAULT: dict[str, int] = {
     "0": 100, "1": 67, "2": 33, "3_o_mas": 0,
 }
@@ -36,10 +38,19 @@ _PREGUNTA_ID_RE = re.compile(r"(?:^|_)(p\d+)(?:_|$)")
 
 
 def _resolve_config_path() -> Path:
+    """Resuelve la ruta al YAML en runtime (no en import time)."""
     env = os.environ.get("QUESTIONNAIRE_YAML", "")
     if env:
         return Path(env)
     return Path(__file__).parent.parent.parent / "config" / "questionnaire.yaml"
+
+
+def _short_pregunta_id(full_id: str) -> str:
+    """Extrae 'p1'/'p2'/'p3' del id largo (ej. 'lat_p1_minutos_cooling' → 'p1')."""
+    match = _PREGUNTA_ID_RE.search(full_id)
+    if not match:
+        raise ValueError(f"No se pudo extraer el id corto de pregunta de '{full_id}'")
+    return match.group(1)
 
 
 def _short_pregunta_id(full_id: str) -> str:
@@ -80,17 +91,15 @@ class PreguntaConfig:
             for b in scoring.get("buckets", [])
         ]
 
-        # Score por cantidad de bloqueantes (P1 de bloqueantes)
-        raw_spc = data.get("score_por_cantidad", {})
-        self._score_por_cantidad: dict[str, int] = (
-            {str(k): int(v) for k, v in raw_spc.items()}
-            if raw_spc else _SCORE_CANTIDAD_BLOQUEANTES_DEFAULT
-        )
+        # Score por cantidad de bloqueantes (solo dimensión bloqueantes P1)
+        self._score_por_cantidad: dict[str, int] = _SCORE_CANTIDAD_BLOQUEANTES_DEFAULT
 
         self.es_nominal: bool = self.tipo in (
             "categorical_nominal",
             "categorical_nominal_multiselect",
         )
+
+        # ¿Es input numérico?
         self.es_numerico: bool = self.tipo == "numeric"
 
     def score_categoria(self, opcion_id: str) -> int:
@@ -158,6 +167,11 @@ class SegmentacionConfig:
 
 
 class DimensionesConfig:
+    """
+    Acceso tipado a config/questionnaire.yaml.
+    Cacheada — se carga una sola vez por proceso.
+    """
+
     def __init__(self, data: dict) -> None:
         self.version: str = data["version"]
         self.segmentacion = SegmentacionConfig(data["segmentation_fields"])
@@ -183,11 +197,12 @@ class DimensionesConfig:
 
 @lru_cache(maxsize=1)
 def get_config() -> DimensionesConfig:
+    """Carga y cachea config/questionnaire.yaml. Falla rápido si el archivo no existe."""
     path = _resolve_config_path()
     if not path.exists():
         raise FileNotFoundError(
             f"No se encontró config/questionnaire.yaml en {path}. "
-            "Verificar la variable de entorno QUESTIONNAIRE_YAML."
+            "Verificar la variable de entorno QUESTIONNAIRE_YAML o la estructura del proyecto."
         )
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)

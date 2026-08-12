@@ -29,6 +29,10 @@ from app.config.loader import get_config
 K: int = 50
 _SEED: int = 42
 
+# Seed fijo para que el muestreo de _mezclar() sea reproducible
+# (mismos inputs → mismos percentiles, requerido para tests determinísticos).
+_SEED: int = 42
+
 
 @dataclass
 class RebalanceoResult:
@@ -135,6 +139,7 @@ class RebalanceEngine:
         n_pub = math.ceil(n_total * w_pub)
         n_pri = math.ceil(n_total * w_pri)
 
+        # Muestreo con reemplazo proporcional al peso — seed fijo para reproducibilidad
         rng = random.Random(_SEED)
         muestra_pub = (
             rng.choices(publicos, k=n_pub) if publicos and n_pub > 0 else []

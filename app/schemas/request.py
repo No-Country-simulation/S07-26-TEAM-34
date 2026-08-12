@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 # ── Contexto (doc §8) ─────────────────────────────────────────────────────────
 
+# ── Contexto del operador (doc §8) ────────────────────────────────────────────
+
 FacilitySize = Literal["<1MW", "1-5MW", "5-20MW", ">20MW"]
 DcType = Literal["hyperscale", "colocation", "enterprise", "edge"]
 
@@ -95,7 +97,9 @@ class RespuestasAutoCuantificacion(BaseModel):
 BloqueanteTipo = Literal[
     "presupuesto", "autoridad_politica", "herramientas", "personal", "nada"
 ]
-SeveridadBloqueante = Literal["no_es_real", "moderado", "fuerte", "estructural"]
+SeveridadBloqueante = Literal[
+    "no_es_real", "moderado", "fuerte", "estructural"
+]
 
 
 class RespuestasBloqueantes(BaseModel):

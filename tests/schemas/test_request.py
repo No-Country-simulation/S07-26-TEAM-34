@@ -126,7 +126,7 @@ def test_visibilidad_p2_invalido_falla():
 # ── Atribución — caso borde "no_sabria_decir" ───────────────────────────────────────
 
 def test_atribucion_no_sabria_se_acepta():
-    """Cuando p1='no_sabria', se acepta; el engine asignará p2/p3=0."""
+    """Cuando p1='no_sabria_decir', se acepta; el engine asignará p2/p3=0."""
     r = RespuestasAtribucion(p1="no_sabria_decir", p2="sin_evidencia", p3="nunca_revisada")
     assert r.p1 == "no_sabria_decir"
 
