@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: benchmark-madurez-backend
+    runtime: python
+    buildCommand: pip install .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # se configura manualmente en el dashboard de Render
+      - key: GEMINI_API_KEY
+        sync: false          # opcional — sin ella el sistema usa fallback determinista
+      - key: PYTHON_VERSION
+        value: "3.11"
