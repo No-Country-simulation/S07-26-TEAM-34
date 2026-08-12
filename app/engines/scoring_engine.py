@@ -111,10 +111,10 @@ class ScoringEngine:
         cfg = self._cfg
         notas = []
 
-        # Caso borde (doc §5): si P1 = "no_sabria", P2 y P3 → 0
-        if atr.p1 == "no_sabria":
+        # Caso borde (doc §5): si P1 = "no_sabria_decir", P2 y P3 → 0
+        if atr.p1 == "no_sabria_decir":
             sp2 = sp3 = 0
-            notas.append("P1='no_sabria': P2 y P3 se asignaron 0 automáticamente")
+            notas.append("P1='no_sabria_decir': P2 y P3 se asignaron 0 automáticamente")
         else:
             sp2 = cfg.score_categoria("atribucion_friccion", "p2", atr.p2)
             sp3 = cfg.score_categoria("atribucion_friccion", "p3", atr.p3)

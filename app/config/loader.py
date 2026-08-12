@@ -1,5 +1,5 @@
 """
-Loader de config/dimensiones.yaml — fuente única de preguntas, opciones y scores.
+Loader de config/questionnaire.yaml — fuente única de preguntas, opciones y scores.
 
 Regla: ninguna pregunta, opción ni score se escribe a mano en un .py.
 Todo sale de aquí.
@@ -13,27 +13,46 @@ Uso:
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
 import yaml
 
+# Mapea los ids largos de questionnaire.yaml → ids cortos usados por scoring_engine.py
+_DIMENSION_ID_MAP: dict[str, str] = {
+    "latencia_coordinacion":   "latencia",
+    "visibilidad_cross_layer": "visibilidad",
+    "atribucion_friccion":     "atribucion_friccion",
+    "auto_cuantificacion":     "auto_cuantificacion",
+    "bloqueantes":             "bloqueantes",
+}
+
+_SCORE_CANTIDAD_BLOQUEANTES_DEFAULT: dict[str, int] = {
+    "0": 100, "1": 67, "2": 33, "3_o_mas": 0,
+}
+
+_PREGUNTA_ID_RE = re.compile(r"(?:^|_)(p\d+)(?:_|$)")
+
 
 def _resolve_config_path() -> Path:
-    """Resuelve la ruta al YAML en runtime (no en import time)."""
-    env = os.environ.get("DIMENSIONES_YAML", "")
+    env = os.environ.get("QUESTIONNAIRE_YAML", "")
     if env:
         return Path(env)
-    return Path(__file__).parent.parent.parent / "config" / "dimensiones.yaml"
+    return Path(__file__).parent.parent.parent / "config" / "questionnaire.yaml"
 
 
-# ── Clases de configuración ───────────────────────────────────────────────────
+def _short_pregunta_id(full_id: str) -> str:
+    """Extrae 'p1'/'p2'/'p3' del id largo (ej. 'lat_p1_minutos_cooling' → 'p1')."""
+    match = _PREGUNTA_ID_RE.search(full_id)
+    if not match:
+        raise ValueError(f"No se pudo extraer el id corto de pregunta de '{full_id}'")
+    return match.group(1)
+
 
 class BucketScore:
-    """Un bucket de normalización para variables numéricas (doc §3, P1/P2 de Latencia)."""
-
     def __init__(self, max_val: float | None, score: int) -> None:
-        self.max_val = max_val   # None = sin límite superior
+        self.max_val = max_val
         self.score = score
 
     def matches(self, value: float) -> bool:
@@ -45,39 +64,36 @@ class BucketScore:
 class PreguntaConfig:
     def __init__(self, pregunta_id: str, data: dict) -> None:
         self.id = pregunta_id
-        self.tipo: str = data["tipo"]
-        self.texto: str = data.get("texto", "")
+        self.tipo: str = data["type"]
+        self.texto: str = data.get("prompt", "")
 
-        # Opciones categóricas → {id: score}
+        # Opciones categóricas → {value: score}
         self._opciones: dict[str, int] = {}
-        for opt in data.get("opciones", []):
+        for opt in data.get("options", []):
             if "score" in opt:
-                self._opciones[opt["id"]] = opt["score"]
+                self._opciones[opt["value"]] = opt["score"]
 
         # Buckets para variables numéricas
+        scoring = data.get("scoring", {})
         self._buckets: list[BucketScore] = [
-            BucketScore(b.get("max"), b["score"])
-            for b in data.get("buckets", [])
+            BucketScore(b.get("max_inclusive"), b["score"])
+            for b in scoring.get("buckets", [])
         ]
 
-        # Score por cantidad de bloqueantes (solo dimensión bloqueantes P1)
-        self._score_por_cantidad: dict[str, int] = data.get("score_por_cantidad", {})
+        # Score por cantidad de bloqueantes (P1 de bloqueantes)
+        raw_spc = data.get("score_por_cantidad", {})
+        self._score_por_cantidad: dict[str, int] = (
+            {str(k): int(v) for k, v in raw_spc.items()}
+            if raw_spc else _SCORE_CANTIDAD_BLOQUEANTES_DEFAULT
+        )
 
-        # ¿Es nominal? (no entra al índice)
         self.es_nominal: bool = self.tipo in (
-            "categorico_nominal",
-            "categorico_nominal_multiseleccion",
+            "categorical_nominal",
+            "categorical_nominal_multiselect",
         )
-
-        # ¿Es input numérico?
-        self.es_numerico: bool = self.tipo in (
-            "numerico_minutos",
-            "numerico_entero",
-            "numerico_capacidad",
-        )
+        self.es_numerico: bool = self.tipo == "numeric"
 
     def score_categoria(self, opcion_id: str) -> int:
-        """Score para una respuesta categórica ordinal."""
         if opcion_id not in self._opciones:
             raise KeyError(
                 f"Opción '{opcion_id}' no existe en pregunta '{self.id}'. "
@@ -86,7 +102,6 @@ class PreguntaConfig:
         return self._opciones[opcion_id]
 
     def score_numerico(self, valor: float) -> int:
-        """Score para una variable numérica usando los buckets del YAML."""
         if not self._buckets:
             raise ValueError(f"Pregunta '{self.id}' no tiene buckets definidos")
         for bucket in self._buckets:
@@ -95,7 +110,6 @@ class PreguntaConfig:
         return 0
 
     def score_cantidad_bloqueantes(self, cantidad: int) -> int:
-        """Score para P1 de Bloqueantes según la cantidad marcada."""
         if cantidad == 0:
             return self._score_por_cantidad.get("0", 100)
         if cantidad == 1:
@@ -112,12 +126,12 @@ class DimensionConfig:
     def __init__(self, dim_id: str, data: dict) -> None:
         self.id = dim_id
         self.label: str = data["label"]
-        self.descripcion: str = data.get("descripcion", "")
-        self.formula: str = data.get("formula", "")
-        self.preguntas: dict[str, PreguntaConfig] = {
-            pid: PreguntaConfig(pid, pdata)
-            for pid, pdata in data["preguntas"].items()
-        }
+        self.descripcion: str = data.get("note", "")
+        self.formula: str = data.get("index_formula", "")
+        self.preguntas: dict[str, PreguntaConfig] = {}
+        for qdata in data["questions"]:
+            short_id = _short_pregunta_id(qdata["id"])
+            self.preguntas[short_id] = PreguntaConfig(short_id, qdata)
 
     def pregunta(self, pid: str) -> PreguntaConfig:
         if pid not in self.preguntas:
@@ -126,35 +140,30 @@ class DimensionConfig:
 
 
 class SegmentacionConfig:
-    def __init__(self, data: dict) -> None:
+    def __init__(self, data: list[dict]) -> None:
         self._campos: dict[str, list[str]] = {
-            campo: [opt["id"] for opt in cfg["opciones"]]
-            for campo, cfg in data.items()
+            campo["id"]: campo.get("options", [])
+            for campo in data
         }
 
     def opciones(self, campo: str) -> list[str]:
         return self._campos.get(campo, [])
 
     def total_categorias(self) -> int:
-        """Total de combinaciones posibles (para factor_diversidad del rebalanceo)."""
         total = 1
         for opts in self._campos.values():
-            total *= len(opts)
+            if opts:
+                total *= len(opts)
         return total
 
 
 class DimensionesConfig:
-    """
-    Acceso tipado a config/dimensiones.yaml.
-    Cacheada — se carga una sola vez por proceso.
-    """
-
     def __init__(self, data: dict) -> None:
         self.version: str = data["version"]
-        self.segmentacion = SegmentacionConfig(data["segmentacion"])
+        self.segmentacion = SegmentacionConfig(data["segmentation_fields"])
         self.dimensiones: dict[str, DimensionConfig] = {
-            did: DimensionConfig(did, ddata)
-            for did, ddata in data["dimensiones"].items()
+            _DIMENSION_ID_MAP[did]: DimensionConfig(_DIMENSION_ID_MAP[did], ddata)
+            for did, ddata in data["dimensions"].items()
         }
 
     def dimension(self, dim_id: str) -> DimensionConfig:
@@ -172,16 +181,13 @@ class DimensionesConfig:
         return self.dimension(dim_id).pregunta(pregunta_id).score_numerico(valor)
 
 
-# ── Punto de entrada cacheado ─────────────────────────────────────────────────
-
 @lru_cache(maxsize=1)
 def get_config() -> DimensionesConfig:
-    """Carga y cachea config/dimensiones.yaml. Falla rápido si el archivo no existe."""
     path = _resolve_config_path()
     if not path.exists():
         raise FileNotFoundError(
-            f"No se encontró config/dimensiones.yaml en {path}. "
-            "Verificar la variable de entorno DIMENSIONES_YAML o la estructura del proyecto."
+            f"No se encontró config/questionnaire.yaml en {path}. "
+            "Verificar la variable de entorno QUESTIONNAIRE_YAML."
         )
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)

@@ -16,10 +16,10 @@ from app.services.benchmark_service import BenchmarkService
 
 def _req(**overrides) -> CuestionarioRequest:
     data = {
-        "contexto": {"facility_size": "5_20mw", "region": "europa", "dc_type": "enterprise"},
-        "latencia": {"p1_minutos": 30.0, "p2_minutos": 45.0, "p3": "reporte_revision_manual"},
+        "contexto": {"facility_size": "5-20MW", "region": "europa", "dc_type": "enterprise"},
+        "latencia": {"p1_minutos": 30.0, "p2_minutos": 45.0, "p3": "reporte_periodico"},
         "visibilidad": {"p1_sistemas": 3, "p2": "semanal", "p3": "nadie"},
-        "atribucion_friccion": {"p1": "workload_energia", "p2": "sin_evidencia", "p3": "nunca"},
+        "atribucion_friccion": {"p1": "workload_energia", "p2": "sin_evidencia", "p3": "nunca_revisada"},
         "auto_cuantificacion": {
             "p1_capacidad_total": 10.0,
             "p2_capacidad_utilizable": 8.0,

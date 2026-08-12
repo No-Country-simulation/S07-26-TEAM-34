@@ -1,9 +1,12 @@
 """
-Routers FastAPI — reciben, llaman al orquestador, devuelven.
-No calculan nada.
+Routers FastAPI — reciben, llaman al orquestador, devuelven. No calculan nada.
 """
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+import yaml
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.request import CuestionarioRequest
@@ -11,24 +14,47 @@ from app.schemas.response import PDFInputResponse, ResultadoResponse
 from app.services.benchmark_service import BenchmarkService
 
 router = APIRouter()
-_service = BenchmarkService()
+
+_QUESTIONNAIRE_PATH = Path(__file__).parent.parent.parent / "config" / "questionnaire.yaml"
+
+
+def _construir_llm_client():
+    """Gemini si hay API key; si no → fallback determinista (nunca rompe)."""
+    if not os.environ.get("GEMINI_API_KEY"):
+        return None
+    try:
+        from app.engines.llm_clients.gemini_client import GeminiClient
+        return GeminiClient()
+    except Exception:
+        return None
+
+
+_service = BenchmarkService(llm_client=_construir_llm_client())
+
+
+@router.get("/questionnaire")
+def obtener_cuestionario() -> dict:
+    """Devuelve questionnaire.yaml como JSON para que el frontend arme el formulario."""
+    with open(_QUESTIONNAIRE_PATH, encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 @router.post("/respuestas", response_model=ResultadoResponse, status_code=202)
 def enviar_respuestas(req: CuestionarioRequest) -> ResultadoResponse:
-    """Recibe el cuestionario completo y ejecuta el pipeline."""
     return _service.procesar(req)
 
 
 @router.get("/resultados/{operator_id}", response_model=ResultadoResponse)
 def obtener_resultado(operator_id: str) -> ResultadoResponse:
-    """Devuelve el resultado calculado para un operador."""
-    # TODO: leer desde DB en PR de persistencia
-    raise HTTPException(status_code=404, detail="Resultado no encontrado")
+    resultado = _service.obtener_resultado(operator_id)
+    if resultado is None:
+        raise HTTPException(status_code=404, detail="Resultado no encontrado")
+    return resultado
 
 
 @router.get("/resultados/{operator_id}/pdf", response_model=PDFInputResponse)
 def obtener_pdf_input(operator_id: str) -> PDFInputResponse:
-    """JSON estable para que Proyecto 5 genere el PDF."""
-    # TODO: leer desde DB en PR de persistencia
-    raise HTTPException(status_code=404, detail="Resultado no encontrado")
+    resultado = _service.pdf_input(operator_id)
+    if resultado is None:
+        raise HTTPException(status_code=404, detail="Resultado no encontrado")
+    return resultado

@@ -44,7 +44,7 @@ def test_facility_size_bandas_correctas():
     """Bandas del doc §8: <1MW, 1-5MW, 5-20MW, >20MW."""
     cfg = get_config()
     opciones = cfg.segmentacion.opciones("facility_size")
-    assert opciones == ["menos_1mw", "1_5mw", "5_20mw", "mas_20mw"]
+    assert opciones == ["<1MW", "1-5MW", "5-20MW", ">20MW"]
 
 
 # ── Latencia — buckets numéricos (doc §3) ─────────────────────────────────────
@@ -90,8 +90,8 @@ def test_latencia_p3_scores_correctos():
     """Escala 4 niveles: 100-67-33-0 (doc §3 y §2.3)."""
     cfg = get_config()
     assert cfg.score_categoria("latencia", "p3", "automatizado") == 100
-    assert cfg.score_categoria("latencia", "p3", "alertas_accion_manual") == 67
-    assert cfg.score_categoria("latencia", "p3", "reporte_revision_manual") == 33
+    assert cfg.score_categoria("latencia", "p3", "alertas_manual") == 67
+    assert cfg.score_categoria("latencia", "p3", "reporte_periodico") == 33
     assert cfg.score_categoria("latencia", "p3", "sin_proceso") == 0
 
 
@@ -124,16 +124,17 @@ def test_visibilidad_p2_escala_5_niveles():
     assert cfg.score_categoria("visibilidad", "p2", "tiempo_real") == 100
     assert cfg.score_categoria("visibilidad", "p2", "diario") == 75
     assert cfg.score_categoria("visibilidad", "p2", "semanal") == 50
-    assert cfg.score_categoria("visibilidad", "p2", "mensual") == 25
+    assert cfg.score_categoria("visibilidad", "p2", "mensual_o_mas") == 25
     assert cfg.score_categoria("visibilidad", "p2", "nunca") == 0
 
 
 def test_visibilidad_p3_escala_3_niveles():
     """Escala 3 niveles: 100-50-0 (doc §4 y §2.3)."""
     cfg = get_config()
-    assert cfg.score_categoria("visibilidad", "p3", "cualquier_responsable") == 100
-    assert cfg.score_categoria("visibilidad", "p3", "rol_especifico") == 50
+    assert cfg.score_categoria("visibilidad", "p3", "cualquiera") == 100
+    assert cfg.score_categoria("visibilidad", "p3", "un_rol") == 50
     assert cfg.score_categoria("visibilidad", "p3", "nadie") == 0
+
 
 
 # ── Atribución — P1 nominal, P2 y P3 ordinales (doc §5) ──────────────────────
@@ -147,16 +148,16 @@ def test_atribucion_p1_es_nominal():
 def test_atribucion_p2_scores_correctos():
     """Escala 3 niveles: 100-50-0 (doc §5)."""
     cfg = get_config()
-    assert cfg.score_categoria("atribucion_friccion", "p2", "con_evidencia") == 100
+    assert cfg.score_categoria("atribucion_friccion", "p2", "con_medicion") == 100
     assert cfg.score_categoria("atribucion_friccion", "p2", "estimacion") == 50
     assert cfg.score_categoria("atribucion_friccion", "p2", "sin_evidencia") == 0
 
 
 def test_atribucion_p3_scores_correctos():
     cfg = get_config()
-    assert cfg.score_categoria("atribucion_friccion", "p3", "activamente") == 100
-    assert cfg.score_categoria("atribucion_friccion", "p3", "periodicamente") == 50
-    assert cfg.score_categoria("atribucion_friccion", "p3", "nunca") == 0
+    assert cfg.score_categoria("atribucion_friccion", "p3", "revision_activa") == 100
+    assert cfg.score_categoria("atribucion_friccion", "p3", "revision_periodica") == 50
+    assert cfg.score_categoria("atribucion_friccion", "p3", "nunca_revisada") == 0
 
 
 # ── Auto-cuantificación — P1/P2 numéricos, P3 ordinal (doc §6) ───────────────
@@ -170,10 +171,10 @@ def test_auto_cuant_p1_p2_son_numericos():
 def test_auto_cuant_p3_escala_4_niveles():
     """Escala 4 niveles: 100-67-33-0 (doc §6 y §2.3)."""
     cfg = get_config()
-    assert cfg.score_categoria("auto_cuantificacion", "p3", "tiempo_real") == 100
+    assert cfg.score_categoria("auto_cuantificacion", "p3", "continuamente") == 100
     assert cfg.score_categoria("auto_cuantificacion", "p3", "trimestral_semestral") == 67
     assert cfg.score_categoria("auto_cuantificacion", "p3", "anual") == 33
-    assert cfg.score_categoria("auto_cuantificacion", "p3", "nunca") == 0
+    assert cfg.score_categoria("auto_cuantificacion", "p3", "nunca_remedido") == 0
 
 
 # ── Bloqueantes — P1 nominal multi-selección, P2 ordinal (doc §7) ────────────
@@ -182,7 +183,7 @@ def test_bloqueantes_p1_es_nominal_multiseleccion():
     cfg = get_config()
     p1 = cfg.dimension("bloqueantes").pregunta("p1")
     assert p1.es_nominal is True
-    assert p1.tipo == "categorico_nominal_multiseleccion"
+    assert p1.tipo == "categorical_nominal_multiselect"
 
 
 def test_bloqueantes_score_por_cantidad_0():
@@ -213,7 +214,7 @@ def test_bloqueantes_score_por_cantidad_3_o_mas():
 def test_bloqueantes_p2_escala_4_niveles():
     """Escala 4 niveles: 100-67-33-0 (doc §7 y §2.3)."""
     cfg = get_config()
-    assert cfg.score_categoria("bloqueantes", "p2", "no_bloqueante") == 100
+    assert cfg.score_categoria("bloqueantes", "p2", "no_es_real") == 100
     assert cfg.score_categoria("bloqueantes", "p2", "moderado") == 67
     assert cfg.score_categoria("bloqueantes", "p2", "fuerte") == 33
     assert cfg.score_categoria("bloqueantes", "p2", "estructural") == 0
@@ -234,7 +235,7 @@ def test_opcion_invalida_lanza_error():
 
 
 def test_yaml_no_encontrado_lanza_error(tmp_path, monkeypatch):
-    monkeypatch.setenv("DIMENSIONES_YAML", str(tmp_path / "no_existe.yaml"))
+    monkeypatch.setenv("QUESTIONNAIRE_YAML", str(tmp_path / "no_existe.yaml"))
     get_config.cache_clear()
     with pytest.raises(FileNotFoundError):
         get_config()
