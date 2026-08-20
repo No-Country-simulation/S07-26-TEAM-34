@@ -4,7 +4,7 @@ import { draftIncompleto, draftToPayload, initialDraft, type SurveyDraft } from 
 import { indexQuestionnaire, type IndexedDimension } from "../../lib/questionnaire";
 import type { ResultadoResponse } from "../../types";
 import { DimensionCard } from "./DimensionCard";
-import { CheckboxGroup, FieldLabel, NumericField, RadioGroup, SelectField, TextField } from "./fields";
+import { CheckboxGroup, FieldLabel, NumericField, RadioGroup, SelectField } from "./fields";
 
 export function SurveySection({
   onResultado,
@@ -14,6 +14,7 @@ export function SurveySection({
   const [dims, setDims] = useState<Record<string, IndexedDimension> | null>(null);
   const [facilityOptions, setFacilityOptions] = useState<string[]>([]);
   const [dcTypeOptions, setDcTypeOptions] = useState<string[]>([]);
+  const [regionOptions, setRegionOptions] = useState<string[]>([]);
   const [draft, setDraft] = useState<SurveyDraft>(initialDraft);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -25,8 +26,10 @@ export function SurveySection({
         setDims(indexQuestionnaire(q));
         const facility = q.segmentation_fields.find((f) => f.id === "facility_size");
         const dcType = q.segmentation_fields.find((f) => f.id === "dc_type");
+        const region = q.segmentation_fields.find((f) => f.id === "region");
         setFacilityOptions(facility?.options ?? []);
         setDcTypeOptions(dcType?.options ?? []);
+        setRegionOptions(region?.options ?? []);
       })
       .catch(() => setLoadError("No pudimos conectar con el servidor. ¿Está corriendo el backend?"));
   }, []);
@@ -94,9 +97,9 @@ export function SurveySection({
           </div>
           <div className="sm:col-span-2">
             <FieldLabel note="Continente o región amplia — no hace falta el país exacto.">Región</FieldLabel>
-            <TextField
+            <SelectField
+              options={regionOptions}
               value={draft.contexto.region}
-              placeholder="ej. Latinoamérica"
               onChange={(v) => setDraft((d) => ({ ...d, contexto: { ...d.contexto, region: v } }))}
             />
           </div>
