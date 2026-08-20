@@ -14,11 +14,15 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 FacilitySize = Literal["<1MW", "1-5MW", "5-20MW", ">20MW"]
 DcType = Literal["hyperscale", "colocation", "enterprise", "edge"]
+# Cerrado — mismos 5 valores de la calibración del dataset público (doc §8).
+# Antes era texto libre; el match exacto de region en PeerGroupEngine
+# nunca funcionaba porque cada operador lo tipeaba distinto.
+Region = Literal["Norteamerica", "Latinoamerica", "Europa", "Asia-Pacifico", "Medio Oriente/Africa"]
 
 
 class ContextoOperador(BaseModel):
     facility_size: FacilitySize
-    region: Annotated[str, Field(description="Continente o región amplia, no país exacto")]
+    region: Region
     dc_type: DcType
 
 

@@ -24,7 +24,7 @@ def _payload_valido() -> dict:
     return {
         "contexto": {
             "facility_size": "1-5MW",
-            "region": "latam",
+            "region": "Latinoamerica",
             "dc_type": "colocation",
         },
         "latencia": {
@@ -57,7 +57,7 @@ def _payload_valido() -> dict:
 
 def test_cuestionario_completo_valido():
     req = CuestionarioRequest(**_payload_valido())
-    assert req.contexto.region == "latam"
+    assert req.contexto.region == "Latinoamerica"
     assert req.latencia.p1_minutos == 8.0
     assert req.bloqueantes.p1_bloqueantes == ["presupuesto"]
 

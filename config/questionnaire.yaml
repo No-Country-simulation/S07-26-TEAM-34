@@ -17,7 +17,11 @@ segmentation_fields:
 
   - id: "region"
     label: "Región (continente o región amplia)"
-    options: []   # texto libre — doc §8: no cerrado para preservar anonimato
+    # Cerrado — doc §8: región amplia, no país exacto, para no comprometer
+    # el anonimato. Mismos 5 valores usados en la calibración del dataset
+    # público (config/dataset_publico_sintetico.csv), para que el match
+    # exacto del Motor de grupos comparables (peer_group_engine) funcione.
+    options: ["Norteamerica", "Latinoamerica", "Europa", "Asia-Pacifico", "Medio Oriente/Africa"]
 
 dimensions:
 

@@ -17,7 +17,7 @@ from app.main import app
 client = TestClient(app)
 
 _PAYLOAD = {
-    "contexto": {"facility_size": "1-5MW", "region": "latam", "dc_type": "colocation"},
+    "contexto": {"facility_size": "1-5MW", "region": "Latinoamerica", "dc_type": "colocation"},
     "latencia": {"p1_minutos": 8.0, "p2_minutos": 20.0, "p3": "alertas_manual"},
     "visibilidad": {"p1_sistemas": 2, "p2": "diario", "p3": "un_rol"},
     "atribucion_friccion": {"p1": "energia_cooling", "p2": "estimacion", "p3": "revision_periodica"},
@@ -92,7 +92,7 @@ def test_operator_id_es_uuid():
 def test_scores_caso_maximo():
     """Scores máximos: 0 min + automatizado + 1 sistema + tiempo_real, etc."""
     payload = {
-        "contexto": {"facility_size": ">20MW", "region": "europa", "dc_type": "hyperscale"},
+        "contexto": {"facility_size": ">20MW", "region": "Europa", "dc_type": "hyperscale"},
         "latencia": {"p1_minutos": 0, "p2_minutos": 0, "p3": "automatizado"},
         "visibilidad": {"p1_sistemas": 1, "p2": "tiempo_real", "p3": "cualquiera"},
         "atribucion_friccion": {"p1": "energia_cooling", "p2": "con_medicion", "p3": "revision_activa"},
@@ -112,7 +112,7 @@ def test_scores_caso_maximo():
 def test_scores_caso_minimo():
     """Scores mínimos: todo al máximo de fricción."""
     payload = {
-        "contexto": {"facility_size": "<1MW", "region": "apac", "dc_type": "edge"},
+        "contexto": {"facility_size": "<1MW", "region": "Asia-Pacifico", "dc_type": "edge"},
         "latencia": {"p1_minutos": 2000, "p2_minutos": 2000, "p3": "sin_proceso"},
         "visibilidad": {"p1_sistemas": 10, "p2": "nunca", "p3": "nadie"},
         "atribucion_friccion": {"p1": "no_sabria_decir", "p2": "sin_evidencia", "p3": "nunca_revisada"},

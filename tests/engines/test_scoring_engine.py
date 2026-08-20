@@ -15,7 +15,7 @@ from app.schemas.request import CuestionarioRequest
 def _req(**overrides) -> CuestionarioRequest:
     """Request base completo y válido."""
     data = {
-        "contexto": {"facility_size": "1-5MW", "region": "latam", "dc_type": "colocation"},
+        "contexto": {"facility_size": "1-5MW", "region": "Latinoamerica", "dc_type": "colocation"},
         "latencia": {"p1_minutos": 8.0, "p2_minutos": 20.0, "p3": "alertas_manual"},
         "visibilidad": {"p1_sistemas": 2, "p2": "diario", "p3": "un_rol"},
         "atribucion_friccion": {"p1": "energia_cooling", "p2": "estimacion", "p3": "revision_periodica"},
