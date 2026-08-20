@@ -26,6 +26,7 @@ class BenchmarkRepository:
         diagnostico_texto: str,
         benchmark_version: str,
         dimension_version: str,
+        diagnostico_meta: dict | None = None,
     ) -> None:
         """Persiste las 3 tablas en una sola transacción."""
 
@@ -58,6 +59,7 @@ class BenchmarkRepository:
             profile=perfil,
             top_quartile_gaps=top_quartile_gaps,
             diagnostico_texto=diagnostico_texto,
+            diagnostico_meta=diagnostico_meta,
         ))
 
     def obtener_resultado(self, session: Session, operator_id: str) -> Result | None:

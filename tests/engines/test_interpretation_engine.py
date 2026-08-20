@@ -94,7 +94,11 @@ def test_llm_falla_usa_fallback():
 
 def test_llm_exitoso_usa_llm():
     llm = MagicMock()
-    llm.generar.return_value = "Diagnóstico generado por LLM con detalles específicos."
+    llm.generar.return_value = (
+        '{"titular": "Fricción en bloqueantes", '
+        '"razonamiento": "Diagnóstico generado por LLM con detalles específicos.", '
+        '"accion_sugerida": "Revisar el detalle con el equipo responsable."}'
+    )
     engine = InterpretationEngine(llm_client=llm)
     result = engine.interpretar(SCORES_BAJO, _benchmark(SCORES_BAJO),
                                 _top(SCORES_BAJO, {d: 30.0 for d in SCORES_BAJO}))

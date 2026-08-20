@@ -22,7 +22,11 @@ class ResultadoResponse(BaseModel):
     friccion_principal: str                        # dimensión con percentil más bajo
     scores: list[ScoreDimension]
     top_quartile_gaps: dict[str, str]              # dimensión → descripción del gap
-    diagnostico_texto: str                         # texto redactado por el LLM
+    titular: str                                    # hallazgo principal, 6-10 palabras
+    diagnostico_texto: str                          # el razonamiento (nombre conservado por compatibilidad)
+    accion_sugerida: str                            # qué observar a continuación
+    confianza_nivel: str                            # "alto" | "medio" | "bajo"
+    confianza_descripcion: str                      # por qué ese nivel de confianza
     porcentaje_capacidad_varada: float | None      # calculado si P1/P2 son coherentes
     benchmark_version: str
     dimension_version: str
@@ -38,7 +42,11 @@ class PDFInputResponse(BaseModel):
     friccion_principal: str
     scores: list[ScoreDimension]
     top_quartile_gaps: dict[str, str]
+    titular: str
     diagnostico_texto: str
+    accion_sugerida: str
+    confianza_nivel: str
+    confianza_descripcion: str
     porcentaje_capacidad_varada: float | None
     benchmark_version: str
     dimension_version: str

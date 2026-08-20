@@ -120,6 +120,7 @@ class BenchmarkService:
                 scores_primarios=dataset_primario.get(dim, []),
                 categorias_cubiertas=categorias_cubiertas,
             )
+            rebalanceo_por_dim[dim] = rb
             distribuciones[dim] = rb.distribucion_combinada
 
         # 6. Benchmark y percentiles
@@ -143,7 +144,14 @@ class BenchmarkService:
         interp = self._interpretacion.interpretar(
             scores, benchmark_result, top_quartile_result,
             raw_answers=raw_answers, contexto=req.contexto.model_dump(),
+            rebalanceo_por_dim=rebalanceo_por_dim,
         )
+        diagnostico_meta = {
+            "titular": interp.titular,
+            "accion_sugerida": interp.accion_sugerida,
+            "confianza_nivel": interp.confianza_nivel,
+            "confianza_descripcion": interp.confianza_descripcion,
+        }
 
         # 9. Capacidad varada
         p1 = req.auto_cuantificacion.p1_capacidad_total
@@ -163,6 +171,7 @@ class BenchmarkService:
                 perfil=interp.perfil,
                 top_quartile_gaps=gaps,
                 diagnostico_texto=interp.diagnostico_texto,
+                diagnostico_meta=diagnostico_meta,
                 benchmark_version=_BENCHMARK_VERSION,
                 dimension_version=_DIMENSION_VERSION,
             )
@@ -179,7 +188,11 @@ class BenchmarkService:
                 for dim, score in scores.items()
             ],
             top_quartile_gaps=gaps,
+            titular=interp.titular,
             diagnostico_texto=interp.diagnostico_texto,
+            accion_sugerida=interp.accion_sugerida,
+            confianza_nivel=interp.confianza_nivel,
+            confianza_descripcion=interp.confianza_descripcion,
             porcentaje_capacidad_varada=pct_varada,
             benchmark_version=_BENCHMARK_VERSION,
             dimension_version=_DIMENSION_VERSION,
@@ -191,6 +204,7 @@ class BenchmarkService:
             result = self._repo.obtener_resultado(session, operator_id)
             if result is None:
                 return None
+            meta = result.diagnostico_meta or {}
             return ResultadoResponse(
                 operator_id=operator_id,
                 perfil=result.profile,
@@ -205,7 +219,11 @@ class BenchmarkService:
                     for k, v in result.percentiles.items()
                 ],
                 top_quartile_gaps=result.top_quartile_gaps,
+                titular=meta.get("titular", ""),
                 diagnostico_texto=result.diagnostico_texto,
+                accion_sugerida=meta.get("accion_sugerida", ""),
+                confianza_nivel=meta.get("confianza_nivel", "bajo"),
+                confianza_descripcion=meta.get("confianza_descripcion", "no disponible para este resultado"),
                 porcentaje_capacidad_varada=None,
                 benchmark_version=_BENCHMARK_VERSION,
                 dimension_version=_DIMENSION_VERSION,
@@ -216,6 +234,7 @@ class BenchmarkService:
             result = self._repo.obtener_resultado(session, operator_id)
             if result is None:
                 return None
+            meta = result.diagnostico_meta or {}
             return PDFInputResponse(
                 operator_id=operator_id,
                 perfil=result.profile,
@@ -225,7 +244,11 @@ class BenchmarkService:
                     for k, v in result.percentiles.items()
                 ],
                 top_quartile_gaps=result.top_quartile_gaps,
+                titular=meta.get("titular", ""),
                 diagnostico_texto=result.diagnostico_texto,
+                accion_sugerida=meta.get("accion_sugerida", ""),
+                confianza_nivel=meta.get("confianza_nivel", "bajo"),
+                confianza_descripcion=meta.get("confianza_descripcion", "no disponible para este resultado"),
                 porcentaje_capacidad_varada=None,
                 benchmark_version=_BENCHMARK_VERSION,
                 dimension_version=_DIMENSION_VERSION,

@@ -144,6 +144,9 @@ class Result(Base):
     profile: Mapped[str] = mapped_column(Text, nullable=False)
     top_quartile_gaps: Mapped[dict] = mapped_column(_JsonType, nullable=False)
     diagnostico_texto: Mapped[str] = mapped_column(Text, nullable=False)
+    # {"titular": str, "accion_sugerida": str, "confianza_nivel": str, "confianza_descripcion": str}
+    # Nullable: filas creadas antes de esta columna no lo tienen.
+    diagnostico_meta: Mapped[dict | None] = mapped_column(_JsonType, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
