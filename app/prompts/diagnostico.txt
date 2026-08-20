@@ -2,7 +2,9 @@ Contexto del operador: {contexto}
 Perfil asignado: {perfil}
 Dimensión con mayor fricción: {friccion}
 
-Detalle por dimensión (score 0-100, percentil dentro del grupo comparable, qué mide cada una):
+Detalle por dimensión de este operador (score 0-100 y percentil dentro del
+grupo comparable — qué mide cada dimensión y cómo se relacionan entre sí
+ya está en tus instrucciones, no lo repitas acá):
 {detalle_dimensiones}
 
 Brechas con el cuartil superior:

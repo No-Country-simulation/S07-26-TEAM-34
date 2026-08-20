@@ -131,6 +131,7 @@ class BenchmarkService:
         )
         percentiles = {pd.dimension: pd.percentil for pd in benchmark_result.dimensiones}
         umbrales_p75 = {pd.dimension: pd.p75_ref for pd in benchmark_result.dimensiones}
+        medianas_ref = {pd.dimension: pd.mediana_ref for pd in benchmark_result.dimensiones}
 
         # 7. Top 25%
         top_quartile_result = self._top_quartile.analizar(
@@ -152,6 +153,8 @@ class BenchmarkService:
             "confianza_nivel": interp.confianza_nivel,
             "confianza_descripcion": interp.confianza_descripcion,
             "por_dimension": interp.descripciones_por_dimension,
+            "medianas_ref": medianas_ref,
+            "p75_ref": umbrales_p75,
         }
 
         # 9. Capacidad varada
@@ -186,6 +189,8 @@ class BenchmarkService:
                     dimension=dim, score=score,
                     percentil=percentiles.get(dim, 50.0),
                     descripcion_breve=interp.descripciones_por_dimension.get(dim, ""),
+                    mediana_ref=medianas_ref.get(dim, 50.0),
+                    p75_ref=umbrales_p75.get(dim, 75.0),
                 )
                 for dim, score in scores.items()
             ],
@@ -208,6 +213,8 @@ class BenchmarkService:
                 return None
             meta = result.diagnostico_meta or {}
             por_dimension = meta.get("por_dimension", {})
+            medianas_ref = meta.get("medianas_ref", {})
+            p75_ref = meta.get("p75_ref", {})
             return ResultadoResponse(
                 operator_id=operator_id,
                 perfil=result.profile,
@@ -218,6 +225,8 @@ class BenchmarkService:
                         score=0.0,
                         percentil=v,
                         descripcion_breve=por_dimension.get(k, ""),
+                        mediana_ref=medianas_ref.get(k, 50.0),
+                        p75_ref=p75_ref.get(k, 75.0),
                     )
                     for k, v in result.percentiles.items()
                 ],
@@ -239,6 +248,8 @@ class BenchmarkService:
                 return None
             meta = result.diagnostico_meta or {}
             por_dimension = meta.get("por_dimension", {})
+            medianas_ref = meta.get("medianas_ref", {})
+            p75_ref = meta.get("p75_ref", {})
             return PDFInputResponse(
                 operator_id=operator_id,
                 perfil=result.profile,
@@ -247,6 +258,8 @@ class BenchmarkService:
                     ScoreDimension(
                         dimension=k, score=0.0, percentil=v,
                         descripcion_breve=por_dimension.get(k, ""),
+                        mediana_ref=medianas_ref.get(k, 50.0),
+                        p75_ref=p75_ref.get(k, 75.0),
                     )
                     for k, v in result.percentiles.items()
                 ],

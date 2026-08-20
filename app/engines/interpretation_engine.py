@@ -24,9 +24,22 @@ Prompts en app/prompts/ — no hardcodeados en este archivo (backlog §7).
 from __future__ import annotations
 
 import json
+import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Protocol, runtime_checkable
+
+import yaml
+
+
+def _normalizar_clave(texto: str) -> str:
+    """
+    Compara claves de dimensión ignorando acentos/mayúsculas — el LLM a
+    veces devuelve "atribucion_fricción" en vez de "atribucion_friccion".
+    """
+    sin_acentos = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    return sin_acentos.strip().lower()
 
 from app.engines.benchmark_engine import BenchmarkResult
 from app.engines.rebalance_engine import RebalanceoResult
@@ -70,32 +83,85 @@ _DIM_LABELS = {
     "bloqueantes":         "gestión de bloqueantes",
 }
 
-# Qué mide cada dimensión — le da al LLM el "por qué" para redactar
-# la descripción analítica por dimensión, sin tener que adivinarlo.
-_DIM_QUE_MIDE = {
-    "latencia": (
-        "qué tan rápido se ajustan cooling y energía cuando cambia el "
-        "workload, y cuánto de ese ajuste depende de intervención humana"
-    ),
-    "visibilidad": (
-        "si hay una vista unificada de energía, cooling y workload, o si "
-        "cada capa se gestiona de forma aislada"
-    ),
-    "atribucion_friccion": (
-        "en qué interfaz entre capas percibe el operador que se pierde más "
-        "capacidad, y qué tan basada en evidencia está esa percepción"
-    ),
-    "auto_cuantificacion": (
-        "si el operador sabe, en números concretos, cuánta capacidad tiene "
-        "varada, o si no tiene forma de cuantificarlo"
-    ),
-    "bloqueantes": (
-        "qué le impediría al operador resolver el problema si supiera "
-        "exactamente dónde está: presupuesto, política, herramientas o personal"
-    ),
-}
-
 _DIMENSIONES_ORDEN = list(_DIM_LABELS.keys())
+
+# Relación entre dimensiones y con benchmarks operativos externos (PUE,
+# DCiE, uptime) — contexto de dominio fijo, redactado a mano una vez.
+# El LLM lo recibe en el system_instruction, junto con el detalle de cada
+# dimensión leído directamente de config/questionnaire.yaml (fuente única).
+_RELACION_DIMENSIONES = """\
+Cómo se relacionan las 5 dimensiones entre sí:
+- Latencia y visibilidad son capacidades TÉCNICAS: qué tan rápido reacciona
+  el sistema, y si existe una vista unificada para reaccionar bien. Baja
+  visibilidad tiende a limitar qué tan rápido y con qué confianza se puede
+  ajustar cooling/energía, aunque la automatización (latencia) sea buena.
+- Atribución de fricción y auto-cuantificación son capacidades
+  DIAGNÓSTICAS: si el operador puede identificar y medir dónde pierde
+  capacidad. Sin visibilidad unificada (dimensión anterior), es esperable
+  que la atribución de fricción sea una estimación más que una medición.
+- Bloqueantes es ORGANIZACIONAL, no técnica: incluso con diagnóstico
+  correcto (atribución y auto-cuantificación altas), el operador puede no
+  poder actuar por presupuesto, autoridad, herramientas o personal. Ese
+  patrón — diagnóstico alto, bloqueantes bajo — es un tipo de fricción
+  distinto a no saber qué hacer, y vale la pena nombrarlo así si aparece.
+
+Relación con benchmarks operativos tradicionales (PUE, DCiE, uptime, etc.):
+estas 5 dimensiones no los reemplazan ni los recalculan — miden la
+capacidad organizacional y de coordinación que determina qué tan rápido
+y con qué confianza un operador puede optimizar esas métricas cuando
+algo cambia. Podés mencionar esta relación conceptualmente si ayuda a
+que el operador entienda el propósito del benchmark, pero nunca inventes
+un valor o comparación numérica de PUE/DCiE/uptime — no está en este
+prompt.
+"""
+
+
+def _yaml_config_path() -> Path:
+    return Path(__file__).parent.parent.parent / "config" / "questionnaire.yaml"
+
+
+@lru_cache(maxsize=1)
+def _construir_contexto_dimensiones() -> str:
+    """
+    Contexto de dominio ESTABLE (mismo para todos los operadores): qué mide
+    cada dimensión y qué preguntas la componen, leído directamente de
+    config/questionnaire.yaml — no hardcodeado ni duplicado a mano. Se
+    arma una sola vez por proceso y se agrega al system_instruction.
+    """
+    path = _yaml_config_path()
+    if not path.exists():
+        return ""
+    with path.open(encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    id_map = {
+        "latencia_coordinacion": "latencia",
+        "visibilidad_cross_layer": "visibilidad",
+        "atribucion_friccion": "atribucion_friccion",
+        "auto_cuantificacion": "auto_cuantificacion",
+        "bloqueantes": "bloqueantes",
+    }
+
+    bloques = ["CONTEXTO DEL FRAMEWORK — qué mide cada dimensión y qué se le preguntó al operador:\n"]
+    for idx, (dim_id, dim_data) in enumerate(data.get("dimensions", {}).items(), start=1):
+        dim_corta = id_map.get(dim_id, dim_id)
+        label = dim_data.get("label", dim_corta)
+        note = dim_data.get("note", "").strip()
+        bloques.append(f"{idx}. {label} (id: {dim_corta})\n   Qué mide: {note}")
+
+        preguntas_txt = []
+        for q in dim_data.get("questions", []):
+            prompt = q.get("prompt", "")
+            opciones = q.get("options", [])
+            if opciones:
+                labels = ", ".join(o["label"] for o in opciones)
+                preguntas_txt.append(f"   - {prompt} (opciones: {labels})")
+            else:
+                preguntas_txt.append(f"   - {prompt} (respuesta numérica)")
+        bloques.append("\n".join(preguntas_txt))
+
+    bloques.append(_RELACION_DIMENSIONES)
+    return "\n\n".join(bloques)
 
 
 @runtime_checkable
@@ -127,7 +193,12 @@ class InterpretationEngine:
     def __init__(self, llm_client: LLMClient | None = None) -> None:
         self._llm = llm_client
         self._prompt_tpl = self._cargar_prompt("diagnostico.txt")
-        self._system_instruction = self._cargar_prompt("diagnostico_system.txt")
+        base_instruction = self._cargar_prompt("diagnostico_system.txt")
+        contexto_dimensiones = _construir_contexto_dimensiones()
+        self._system_instruction = (
+            f"{base_instruction}\n\n{contexto_dimensiones}"
+            if contexto_dimensiones else base_instruction
+        )
 
     def interpretar(
         self,
@@ -234,10 +305,14 @@ class InterpretationEngine:
                 razonamiento = str(data["razonamiento"]).strip()
                 accion = str(data["accion_sugerida"]).strip()
                 por_dim_raw = data.get("por_dimension") or {}
+                por_dim_normalizado = {
+                    _normalizar_clave(k): v for k, v in por_dim_raw.items()
+                }
                 por_dimension = {
-                    dim: str(por_dim_raw[dim]).strip()
+                    dim: str(por_dim_normalizado[_normalizar_clave(dim)]).strip()
                     for dim in _DIMENSIONES_ORDEN
-                    if dim in por_dim_raw and str(por_dim_raw[dim]).strip()
+                    if _normalizar_clave(dim) in por_dim_normalizado
+                    and str(por_dim_normalizado[_normalizar_clave(dim)]).strip()
                 }
                 if titular and razonamiento and accion and len(por_dimension) == len(_DIMENSIONES_ORDEN):
                     return titular, razonamiento, accion, por_dimension, True
@@ -292,13 +367,15 @@ class InterpretationEngine:
             nombre = _DIM_LABELS.get(dim, dim)
             if dim in gaps:
                 resultado[dim] = (
-                    f"{nombre.capitalize()}: {score:.0f}/100, percentil {percentil:.0f} — "
-                    f"por debajo del cuartil superior de su grupo comparable."
+                    f"Punto a tener en cuenta: en {nombre}, este operador está en el "
+                    f"percentil {percentil:.0f} de su grupo comparable — por debajo del "
+                    f"cuartil superior, con margen de mejora en esta capacidad."
                 )
             else:
                 resultado[dim] = (
-                    f"{nombre.capitalize()}: {score:.0f}/100, percentil {percentil:.0f} — "
-                    f"en línea con el cuartil superior de su grupo comparable."
+                    f"Punto a favor: en {nombre}, este operador está en el "
+                    f"percentil {percentil:.0f} de su grupo comparable — en línea "
+                    f"con el cuartil superior."
                 )
         return resultado
 
@@ -321,7 +398,7 @@ class InterpretationEngine:
         ) or "Sin brechas identificadas con el cuartil superior."
 
         detalle_dimensiones = "\n".join(
-            f"- {_DIM_LABELS.get(dim, dim)} (qué mide: {_DIM_QUE_MIDE.get(dim, '')}): "
+            f"- {_DIM_LABELS.get(dim, dim)}: "
             f"score {scores.get(dim, 0.0):.0f}/100, "
             f"percentil {(benchmark.get(dim).percentil if benchmark.get(dim) else 50.0):.0f}"
             for dim in _DIMENSIONES_ORDEN

@@ -14,6 +14,8 @@ class ScoreDimension(BaseModel):
     score: float                  # 0-100
     percentil: float              # 0-100
     descripcion_breve: str
+    mediana_ref: float             # mediana del grupo comparable (0-100)
+    p75_ref: float                  # cuartil superior del grupo comparable (0-100)
 
 
 class ResultadoResponse(BaseModel):

@@ -128,6 +128,27 @@ def test_llm_sin_por_dimension_usa_fallback():
     assert not result.uso_llm
     assert len(result.descripciones_por_dimension) == 5
 
+def test_llm_con_clave_acentuada_no_cae_a_fallback():
+    """Gemini a veces devuelve 'atribucion_fricción' (con tilde) — no debe romper el parseo."""
+    llm = MagicMock()
+    llm.generar.return_value = (
+        '{"titular": "Fricción en bloqueantes", '
+        '"razonamiento": "Diagnóstico generado por LLM.", '
+        '"accion_sugerida": "Revisar el detalle.", '
+        '"por_dimension": {'
+        '"latencia": "texto latencia.", '
+        '"visibilidad": "texto visibilidad.", '
+        '"atribucion_fricción": "texto con tilde.", '
+        '"auto_cuantificacion": "texto auto-cuantificación.", '
+        '"bloqueantes": "texto bloqueantes."'
+        '}}'
+    )
+    engine = InterpretationEngine(llm_client=llm)
+    result = engine.interpretar(SCORES_BAJO, _benchmark(SCORES_BAJO),
+                                _top(SCORES_BAJO, {d: 30.0 for d in SCORES_BAJO}))
+    assert result.uso_llm
+    assert result.descripciones_por_dimension["atribucion_friccion"] == "texto con tilde."
+
 def test_fallback_por_dimension_cubre_las_5_dimensiones():
     engine = InterpretationEngine(llm_client=None)
     result = engine.interpretar(SCORES_BAJO, _benchmark(SCORES_BAJO),

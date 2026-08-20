@@ -1,23 +1,8 @@
 import { DIMENSION_ORDER } from "../../lib/questionnaire";
 import type { ResultadoResponse } from "../../types";
 import { DiagnosticoCard } from "./DiagnosticoCard";
-import { PlaceholderIndicator } from "./PlaceholderIndicator";
 import { ScoreCard } from "./ScoreCard";
-
-const INDICADORES_FUTUROS = [
-  {
-    title: "Evolución histórica",
-    description: "Cómo cambia tu posición relativa a medida que el dataset primario crece con nuevas respuestas.",
-  },
-  {
-    title: "Comparación por segmento",
-    description: "Tu percentil filtrado por tamaño de facility, tipo de data center y región, no solo global.",
-  },
-  {
-    title: "Impacto económico estimado",
-    description: "Traducción de la capacidad varada a un costo aproximado, calibrado contra precios de mercado.",
-  },
-];
+import { SegmentComparisonChart } from "./SegmentComparisonChart";
 
 export function ResultsSection({ resultado }: { resultado: ResultadoResponse | null }) {
   return (
@@ -57,13 +42,9 @@ export function ResultsSection({ resultado }: { resultado: ResultadoResponse | n
 
           <div>
             <h3 className="mb-4 text-sm font-semibold tracking-wide text-white/40 uppercase">
-              Próximos indicadores
+              Comparación por segmento
             </h3>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {INDICADORES_FUTUROS.map((ind) => (
-                <PlaceholderIndicator key={ind.title} {...ind} />
-              ))}
-            </div>
+            <SegmentComparisonChart scores={resultado.scores} />
           </div>
         </div>
       )}

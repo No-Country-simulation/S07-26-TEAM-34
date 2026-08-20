@@ -101,6 +101,8 @@ export interface ScoreDimension {
   score: number;
   percentil: number;
   descripcion_breve: string;
+  mediana_ref: number;
+  p75_ref: number;
 }
 
 export interface ResultadoResponse {
