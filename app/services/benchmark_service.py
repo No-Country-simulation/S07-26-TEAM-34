@@ -24,47 +24,15 @@ from app.schemas.response import PDFInputResponse, ResultadoResponse, ScoreDimen
 _DIMENSIONES = ["latencia", "visibilidad", "atribucion_friccion",
                 "auto_cuantificacion", "bloqueantes"]
 
-
-def _cargar_scores_por_source(source: "SourceEnum") -> dict[str, list[float]]:
-    """Carga scores por dimensión desde dimension_scores, filtrando por source."""
-    from app.models.tables import DimensionScore, Operator
-
-    dataset: dict[str, list[float]] = {dim: [] for dim in _DIMENSIONES}
-
-    with get_session() as session:
-        filas = session.query(DimensionScore.score, DimensionScore.dimension)\
-            .join(Operator, Operator.id == DimensionScore.operator_id)\
-            .filter(Operator.source == source)\
-            .all()
-
-        for score, dimension in filas:
-            if dimension.value in dataset:
-                dataset[dimension.value].append(score)
-
-    return dataset
-
-
-def _contar_categorias_cubiertas_primarias() -> int:
-    """
-    Cuenta combinaciones distintas de (region, facility_size, dc_type)
-    presentes entre los operadores con source=primary (doc §9, factor_diversidad).
-    """
-    from app.models.tables import Operator, SourceEnum
-
-    with get_session() as session:
-        combinaciones = session.query(
-            Operator.region, Operator.facility_size, Operator.dc_type
-        ).filter(Operator.source == SourceEnum.primary).distinct().all()
-
-    return len(combinaciones)
-
-_GRUPO_DEFAULT = "global"
 _BENCHMARK_VERSION = "1.0.0"
 _DIMENSION_VERSION = "1.0.0"
 
 
 def _cargar_scores_por_source(source, grupo_id: str = "global") -> dict[str, list[float]]:
-    """Carga scores filtrando por source y grupo comparable."""
+    """
+    Carga scores por dimensión desde dimension_scores, filtrando por source
+    y, si se indica, por el grupo comparable seleccionado (doc §8/§3.2).
+    """
     from app.models.tables import DimensionScore, Operator
 
     dataset: dict[str, list[float]] = {dim: [] for dim in _DIMENSIONES}
@@ -92,6 +60,10 @@ def _cargar_scores_por_source(source, grupo_id: str = "global") -> dict[str, lis
 
 
 def _contar_categorias_cubiertas_primarias() -> int:
+    """
+    Cuenta combinaciones distintas de (region, facility_size, dc_type)
+    presentes entre los operadores con source=primary (doc §9, factor_diversidad).
+    """
     from app.models.tables import Operator, SourceEnum
     with get_session() as session:
         combinaciones = session.query(
@@ -132,10 +104,9 @@ class BenchmarkService:
                 session=session,
             )
 
-        # ── 4. Cargar datasets desde BD (PR 1) ────────────────────────────────
-        from app.models.tables import SourceEnum
-        dataset_publico = _cargar_scores_por_source(SourceEnum.public_synthetic)
-        dataset_primario = _cargar_scores_por_source(SourceEnum.primary)
+        # ── 4. Cargar datasets desde BD, filtrados por el grupo comparable ────
+        dataset_publico = _cargar_scores_por_source(SourceEnum.public_synthetic, peer.grupo_id)
+        dataset_primario = _cargar_scores_por_source(SourceEnum.primary, peer.grupo_id)
         categorias_cubiertas = _contar_categorias_cubiertas_primarias()
 
         # ── 5. Rebalanceo (motor 3.3) ─────────────────────────────────────────
