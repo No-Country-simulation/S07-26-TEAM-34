@@ -1,7 +1,10 @@
 Contexto del operador: {contexto}
 Perfil asignado: {perfil}
 Dimensión con mayor fricción: {friccion}
-Scores por dimensión (0-100): {scores}
+
+Detalle por dimensión (score 0-100, percentil dentro del grupo comparable, qué mide cada una):
+{detalle_dimensiones}
+
 Brechas con el cuartil superior:
 {brechas}
 

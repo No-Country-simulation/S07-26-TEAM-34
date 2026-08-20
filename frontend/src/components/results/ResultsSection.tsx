@@ -36,11 +36,7 @@ export function ResultsSection({ resultado }: { resultado: ResultadoResponse | n
         </div>
       ) : (
         <div className="grid gap-8">
-          <DiagnosticoCard
-            perfil={resultado.perfil}
-            diagnosticoTexto={resultado.diagnostico_texto}
-            porcentajeCapacidadVarada={resultado.porcentaje_capacidad_varada}
-          />
+          <DiagnosticoCard resultado={resultado} />
 
           <div>
             <h3 className="mb-4 text-sm font-semibold tracking-wide text-white/40 uppercase">
@@ -50,7 +46,11 @@ export function ResultsSection({ resultado }: { resultado: ResultadoResponse | n
               {[...resultado.scores]
                 .sort((a, b) => DIMENSION_ORDER.indexOf(a.dimension) - DIMENSION_ORDER.indexOf(b.dimension))
                 .map((score) => (
-                  <ScoreCard key={score.dimension} score={score} gap={resultado.top_quartile_gaps[score.dimension]} />
+                  <ScoreCard
+                    key={score.dimension}
+                    score={score}
+                    destacada={score.dimension === resultado.friccion_principal}
+                  />
                 ))}
             </div>
           </div>

@@ -97,10 +97,40 @@ def test_llm_exitoso_usa_llm():
     llm.generar.return_value = (
         '{"titular": "Fricción en bloqueantes", '
         '"razonamiento": "Diagnóstico generado por LLM con detalles específicos.", '
-        '"accion_sugerida": "Revisar el detalle con el equipo responsable."}'
+        '"accion_sugerida": "Revisar el detalle con el equipo responsable.", '
+        '"por_dimension": {'
+        '"latencia": "texto LLM latencia.", '
+        '"visibilidad": "texto LLM visibilidad.", '
+        '"atribucion_friccion": "texto LLM atribución.", '
+        '"auto_cuantificacion": "texto LLM auto-cuantificación.", '
+        '"bloqueantes": "texto LLM bloqueantes."'
+        '}}'
     )
     engine = InterpretationEngine(llm_client=llm)
     result = engine.interpretar(SCORES_BAJO, _benchmark(SCORES_BAJO),
                                 _top(SCORES_BAJO, {d: 30.0 for d in SCORES_BAJO}))
     assert result.uso_llm
     assert "LLM" in result.diagnostico_texto
+    assert result.descripciones_por_dimension["latencia"] == "texto LLM latencia."
+    assert len(result.descripciones_por_dimension) == 5
+
+def test_llm_sin_por_dimension_usa_fallback():
+    """Si el LLM devuelve el contrato viejo (sin por_dimension) o incompleto, usa fallback."""
+    llm = MagicMock()
+    llm.generar.return_value = (
+        '{"titular": "Fricción en bloqueantes", '
+        '"razonamiento": "Diagnóstico generado por LLM.", '
+        '"accion_sugerida": "Revisar el detalle."}'
+    )
+    engine = InterpretationEngine(llm_client=llm)
+    result = engine.interpretar(SCORES_BAJO, _benchmark(SCORES_BAJO),
+                                _top(SCORES_BAJO, {d: 30.0 for d in SCORES_BAJO}))
+    assert not result.uso_llm
+    assert len(result.descripciones_por_dimension) == 5
+
+def test_fallback_por_dimension_cubre_las_5_dimensiones():
+    engine = InterpretationEngine(llm_client=None)
+    result = engine.interpretar(SCORES_BAJO, _benchmark(SCORES_BAJO),
+                                _top(SCORES_BAJO, {d: 30.0 for d in SCORES_BAJO}))
+    assert set(result.descripciones_por_dimension.keys()) == set(SCORES_BAJO.keys())
+    assert all(len(v) > 10 for v in result.descripciones_por_dimension.values())

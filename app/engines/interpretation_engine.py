@@ -10,12 +10,13 @@ Motor de interpretación (backlog §3.6).
    (a partir de n_valido/peso_primario del motor de rebalanceo — el LLM
    nunca decide esto, solo lo menciona en prosa).
 
-4. Redacta el diagnóstico en 3 piezas (titular, razonamiento, acción
-   sugerida):
+4. Redacta el diagnóstico general (titular, razonamiento, acción sugerida)
+   y una descripción analítica corta por cada una de las 5 dimensiones
+   (no solo la de mayor fricción):
    - Primero intenta con LLM (cliente inyectable), pidiendo salida
      estructurada (JSON).
    - Si el LLM falla, no está disponible, o devuelve algo no parseable
-     → fallback determinista, con la misma estructura de 3 piezas.
+     → fallback determinista, con la misma estructura.
    El sistema nunca falla por ausencia de LLM.
 
 Prompts en app/prompts/ — no hardcodeados en este archivo (backlog §7).
@@ -69,6 +70,33 @@ _DIM_LABELS = {
     "bloqueantes":         "gestión de bloqueantes",
 }
 
+# Qué mide cada dimensión — le da al LLM el "por qué" para redactar
+# la descripción analítica por dimensión, sin tener que adivinarlo.
+_DIM_QUE_MIDE = {
+    "latencia": (
+        "qué tan rápido se ajustan cooling y energía cuando cambia el "
+        "workload, y cuánto de ese ajuste depende de intervención humana"
+    ),
+    "visibilidad": (
+        "si hay una vista unificada de energía, cooling y workload, o si "
+        "cada capa se gestiona de forma aislada"
+    ),
+    "atribucion_friccion": (
+        "en qué interfaz entre capas percibe el operador que se pierde más "
+        "capacidad, y qué tan basada en evidencia está esa percepción"
+    ),
+    "auto_cuantificacion": (
+        "si el operador sabe, en números concretos, cuánta capacidad tiene "
+        "varada, o si no tiene forma de cuantificarlo"
+    ),
+    "bloqueantes": (
+        "qué le impediría al operador resolver el problema si supiera "
+        "exactamente dónde está: presupuesto, política, herramientas o personal"
+    ),
+}
+
+_DIMENSIONES_ORDEN = list(_DIM_LABELS.keys())
+
 
 @runtime_checkable
 class LLMClient(Protocol):
@@ -86,6 +114,7 @@ class InterpretacionResult:
     accion_sugerida: str
     confianza_nivel: str            # "alto" | "medio" | "bajo"
     confianza_descripcion: str
+    descripciones_por_dimension: dict[str, str]
     uso_llm: bool
 
 
@@ -115,7 +144,7 @@ class InterpretationEngine:
             (rebalanceo_por_dim or {}).get(friccion)
         )
 
-        titular, razonamiento, accion, uso_llm = self._redactar(
+        titular, razonamiento, accion, por_dimension, uso_llm = self._redactar(
             perfil, friccion, scores, benchmark, top_quartile,
             raw_answers, contexto, confianza_desc,
         )
@@ -128,6 +157,7 @@ class InterpretationEngine:
             accion_sugerida=accion,
             confianza_nivel=confianza_nivel,
             confianza_descripcion=confianza_desc,
+            descripciones_por_dimension=por_dimension,
             uso_llm=uso_llm,
         )
 
@@ -188,7 +218,7 @@ class InterpretationEngine:
         raw_answers: dict[str, dict] | None,
         contexto: dict | None,
         confianza_desc: str,
-    ) -> tuple[str, str, str, bool]:
+    ) -> tuple[str, str, str, dict[str, str], bool]:
         """Intenta LLM (salida estructurada); si falla usa fallback determinista."""
         if self._llm is not None:
             try:
@@ -203,13 +233,20 @@ class InterpretationEngine:
                 titular = str(data["titular"]).strip()
                 razonamiento = str(data["razonamiento"]).strip()
                 accion = str(data["accion_sugerida"]).strip()
-                if titular and razonamiento and accion:
-                    return titular, razonamiento, accion, True
+                por_dim_raw = data.get("por_dimension") or {}
+                por_dimension = {
+                    dim: str(por_dim_raw[dim]).strip()
+                    for dim in _DIMENSIONES_ORDEN
+                    if dim in por_dim_raw and str(por_dim_raw[dim]).strip()
+                }
+                if titular and razonamiento and accion and len(por_dimension) == len(_DIMENSIONES_ORDEN):
+                    return titular, razonamiento, accion, por_dimension, True
             except Exception:
                 pass  # fallback a continuación
 
         titular, razonamiento, accion = self._fallback(perfil, friccion, scores, benchmark)
-        return titular, razonamiento, accion, False
+        por_dimension = self._fallback_por_dimension(scores, benchmark, top_quartile)
+        return titular, razonamiento, accion, por_dimension, False
 
     def _fallback(
         self,
@@ -239,6 +276,32 @@ class InterpretationEngine:
         )
         return titular, razonamiento, accion
 
+    @staticmethod
+    def _fallback_por_dimension(
+        scores: dict[str, float],
+        benchmark: BenchmarkResult,
+        top_quartile: TopQuartileResult,
+    ) -> dict[str, str]:
+        """Descripción determinista por dimensión — específica, no un placeholder vacío."""
+        gaps = {b.dimension: b.descripcion for b in top_quartile.brechas}
+        resultado: dict[str, str] = {}
+        for dim in _DIMENSIONES_ORDEN:
+            score = scores.get(dim, 0.0)
+            pd = benchmark.get(dim)
+            percentil = pd.percentil if pd else 50.0
+            nombre = _DIM_LABELS.get(dim, dim)
+            if dim in gaps:
+                resultado[dim] = (
+                    f"{nombre.capitalize()}: {score:.0f}/100, percentil {percentil:.0f} — "
+                    f"por debajo del cuartil superior de su grupo comparable."
+                )
+            else:
+                resultado[dim] = (
+                    f"{nombre.capitalize()}: {score:.0f}/100, percentil {percentil:.0f} — "
+                    f"en línea con el cuartil superior de su grupo comparable."
+                )
+        return resultado
+
     def _construir_prompt(
         self,
         perfil: str,
@@ -256,6 +319,13 @@ class InterpretationEngine:
         brechas = "\n".join(
             f"- {b.descripcion}" for b in top_quartile.brechas
         ) or "Sin brechas identificadas con el cuartil superior."
+
+        detalle_dimensiones = "\n".join(
+            f"- {_DIM_LABELS.get(dim, dim)} (qué mide: {_DIM_QUE_MIDE.get(dim, '')}): "
+            f"score {scores.get(dim, 0.0):.0f}/100, "
+            f"percentil {(benchmark.get(dim).percentil if benchmark.get(dim) else 50.0):.0f}"
+            for dim in _DIMENSIONES_ORDEN
+        )
 
         contexto_txt = (
             f"facility {contexto.get('facility_size')}, tipo {contexto.get('dc_type')}, "
@@ -284,7 +354,7 @@ class InterpretationEngine:
         return self._prompt_tpl.format(
             perfil=perfil,
             friccion=friccion,
-            scores=str(scores),
+            detalle_dimensiones=detalle_dimensiones,
             brechas=brechas,
             contexto=contexto_txt,
             interfaz_friccion=interfaz_txt,

@@ -151,6 +151,7 @@ class BenchmarkService:
             "accion_sugerida": interp.accion_sugerida,
             "confianza_nivel": interp.confianza_nivel,
             "confianza_descripcion": interp.confianza_descripcion,
+            "por_dimension": interp.descripciones_por_dimension,
         }
 
         # 9. Capacidad varada
@@ -183,7 +184,8 @@ class BenchmarkService:
             scores=[
                 ScoreDimension(
                     dimension=dim, score=score,
-                    percentil=percentiles.get(dim, 50.0), descripcion_breve=""
+                    percentil=percentiles.get(dim, 50.0),
+                    descripcion_breve=interp.descripciones_por_dimension.get(dim, ""),
                 )
                 for dim, score in scores.items()
             ],
@@ -205,6 +207,7 @@ class BenchmarkService:
             if result is None:
                 return None
             meta = result.diagnostico_meta or {}
+            por_dimension = meta.get("por_dimension", {})
             return ResultadoResponse(
                 operator_id=operator_id,
                 perfil=result.profile,
@@ -214,7 +217,7 @@ class BenchmarkService:
                         dimension=k,
                         score=0.0,
                         percentil=v,
-                        descripcion_breve="",
+                        descripcion_breve=por_dimension.get(k, ""),
                     )
                     for k, v in result.percentiles.items()
                 ],
@@ -235,12 +238,16 @@ class BenchmarkService:
             if result is None:
                 return None
             meta = result.diagnostico_meta or {}
+            por_dimension = meta.get("por_dimension", {})
             return PDFInputResponse(
                 operator_id=operator_id,
                 perfil=result.profile,
                 friccion_principal=result.friccion_principal,
                 scores=[
-                    ScoreDimension(dimension=k, score=0.0, percentil=v, descripcion_breve="")
+                    ScoreDimension(
+                        dimension=k, score=0.0, percentil=v,
+                        descripcion_breve=por_dimension.get(k, ""),
+                    )
                     for k, v in result.percentiles.items()
                 ],
                 top_quartile_gaps=result.top_quartile_gaps,

@@ -109,7 +109,11 @@ export interface ResultadoResponse {
   friccion_principal: string;
   scores: ScoreDimension[];
   top_quartile_gaps: Record<string, string>;
+  titular: string;
   diagnostico_texto: string;
+  accion_sugerida: string;
+  confianza_nivel: "alto" | "medio" | "bajo";
+  confianza_descripcion: string;
   porcentaje_capacidad_varada: number | null;
   benchmark_version: string;
   dimension_version: string;
